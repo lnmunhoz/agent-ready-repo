@@ -91,6 +91,40 @@ function replaceSection(source, start, end, section) {
     : source.slice(0, from) + section + source.slice(to + end.length);
 }
 
+// The lines of a feature spec's "## Interfaces" section, in order.
+export const INTERFACE_LINES = ['Serves', 'Handles', 'Stores', 'Uses', 'External'];
+// A feature used by more features than this shows them as one node in its diagram.
+export const MAX_USED_BY_NODES = 12;
+
+/** Reads `- **Serves:** …` and the other Interfaces lines; a missing line is undefined. */
+export function parseInterfaces(spec = '') {
+  const lines = [];
+  let inside = false;
+  for (const line of spec.split('\n')) {
+    if (/^##\s/.test(line) || line.startsWith('<!--')) inside = /^##\s+Interfaces\s*$/.test(line);
+    else if (inside) lines.push(line);
+  }
+  return Object.fromEntries(INTERFACE_LINES.map(key => [key,
+    lines.map(line => line.match(new RegExp(`^- \\*\\*${key}:\\*\\*\\s*(.*)$`))?.[1].trim()).find(value => value !== undefined)]));
+}
+
+/** The `code spans` in an Interfaces line: the routes, messages or events it names. */
+export function codeTokens(text = '') {
+  return [...text.matchAll(/`([^`]+)`/g)].map(match => match[1].trim()).filter(Boolean);
+}
+
+/** The External line split into services: "Stripe API (payments); Postgres." → two entries. */
+export function externalServices(text = '') {
+  const value = text.trim().replace(/\.$/, '');
+  if (!value || /^none$/i.test(value)) return [];
+  return value.split(';').map(item => item.trim()).filter(Boolean);
+}
+
+// Mermaid node ids must be plain words; feature folder names may contain dots or dashes.
+function nodeId(name) {
+  return `f_${name.replace(/[^A-Za-z0-9_]/g, '_')}`;
+}
+
 export function memoryEntryDates(markdown) {
   return markdown.split('\n').map(line => line.match(MEMORY_ENTRY)?.[1]).filter(Boolean).sort();
 }
@@ -121,53 +155,80 @@ export async function generateDocs(root) {
     else memories.set(name, memory);
   }
 
-  const uses = new Map(names.map(name => [name, new Set()]));
+  // Imports between features, read from the code.
+  const imports = new Map(names.map(name => [name, new Set()]));
+  const sources = new Map(names.map(name => [name, '']));
   const modules = [];
   for (const name of names) {
     for (const file of await walk(join(featureRoot, name))) {
       if (!CODE.test(file)) continue;
-      const imports = new Set();
-      for (const match of (await readFile(file, 'utf8')).matchAll(IMPORT)) {
+      const text = await readFile(file, 'utf8');
+      sources.set(name, `${sources.get(name)}\n${text}`);
+      const targets = new Set();
+      for (const match of text.matchAll(IMPORT)) {
         const target = await resolveImport(root, file, match[1]);
-        imports.add(target);
+        targets.add(target);
         const [top, other] = target.split('/');
-        if (top === 'features' && other !== name && uses.has(other)) uses.get(name).add(other);
+        if (top === 'features' && other !== name && imports.has(other)) imports.get(name).add(other);
       }
-      modules.push({ path: toPosix(relative(root, file)), imports: [...imports].sort() });
+      modules.push({ path: toPosix(relative(root, file)), imports: [...targets].sort() });
     }
   }
 
-  const usedBy = new Map(names.map(name => [name, new Set()]));
-  for (const [name, targets] of uses) for (const target of targets) usedBy.get(target).add(name);
-  const sorted = map => name => [...map.get(name)].sort();
-  const usesOf = sorted(uses);
-  const usedByOf = sorted(usedBy);
+  // Runtime calls: what each feature lists under Serves or Handles (routes,
+  // messages, events), found as text in another feature's code.
+  const interfaces = new Map(names.map(name => [name, parseInterfaces(specs.get(name))]));
+  const owners = new Map();
+  for (const name of names) {
+    const { Serves, Handles } = interfaces.get(name);
+    for (const token of new Set([...codeTokens(Serves), ...codeTokens(Handles)])) {
+      if (owners.has(token)) {
+        problems.push(`\`${token}\` is listed under Serves or Handles in both features/${owners.get(token)} and features/${name}; exactly one feature must own it.`);
+      } else owners.set(token, name);
+    }
+  }
+  const calls = new Map(names.map(name => [name, new Map()]));
+  for (const name of names) {
+    for (const [token, owner] of owners) {
+      if (owner === name || token.length < 3 || !sources.get(name).includes(token)) continue;
+      if (!calls.get(name).has(owner)) calls.get(name).set(owner, []);
+      calls.get(name).get(owner).push(token);
+    }
+  }
+  const callTokens = (from, to) => [...(calls.get(from).get(to) ?? [])].sort();
+  const callsOf = name => [...calls.get(name).keys()].sort();
+  const importsOf = name => [...imports.get(name)].sort();
+  const usedByOf = name => names.filter(other => imports.get(other).has(name) || calls.get(other).has(name));
+  const externalOf = name => externalServices(interfaces.get(name).External);
   const title = name => escapeLabel(featureTitle(name, specs.get(name)));
+  const callLabel = (from, to) => `"${escapeLabel(callTokens(from, to).join(', '))}"`;
+  const code = tokens => tokens.map(token => `\`${token}\``).join(', ');
 
   const graph = names.length
     ? ['```mermaid', 'flowchart TD',
-        ...names.map(name => `  ${name}["${title(name)}"]`),
-        ...names.flatMap(name => usesOf(name).map(target => `  ${name} --> ${target}`)),
+        ...names.map(name => `  ${nodeId(name)}["${title(name)}"]`),
+        ...names.flatMap(name => importsOf(name).map(target => `  ${nodeId(name)} --> ${nodeId(target)}`)),
+        ...names.flatMap(name => callsOf(name).map(owner => `  ${nodeId(name)} -.->|${callLabel(name, owner)}| ${nodeId(owner)}`)),
         '```'].join('\n')
     : '_No features yet. Add a folder under `features/` with a SPEC.md and a MEMORY.md._';
   const featureRows = names.map(name =>
-    `| [${title(name)}](features/${name}/SPEC.md) | ${usesOf(name).join(', ') || '—'} | ${usedByOf(name).join(', ') || '—'} |`);
-  const moduleRows = modules.map(({ path, imports }) =>
-    `| \`${path}\` | ${imports.length ? imports.map(target => `\`${target}\``).join(', ') : '—'} |`);
+    `| [${title(name)}](features/${name}/SPEC.md) | ${importsOf(name).join(', ') || '—'} | ${callsOf(name).join(', ') || '—'} | ${usedByOf(name).join(', ') || '—'} | ${externalOf(name).map(escapeLabel).join('; ') || '—'} |`);
+  const moduleRows = modules.map(({ path, imports: targets }) =>
+    `| \`${path}\` | ${targets.length ? code(targets) : '—'} |`);
 
   const outputs = new Map();
   outputs.set('DEPENDENCIES.md', [
     '# Dependencies',
     '',
-    'Generated by `npm run docs:generate` from the relative imports in `features/`. Do not edit it by hand: `npm run check` fails when it is out of date.',
+    'Generated by `npm run docs:generate` from the relative imports in `features/` and the Interfaces section of each feature\'s `SPEC.md`. Do not edit it by hand: `npm run check` fails when it is out of date.',
     '',
     '## Features',
     '',
-    'An arrow points from a feature to a feature it imports. Before changing a feature, check what uses it.',
+    'A solid arrow points from a feature to a feature it imports. A dotted arrow points from a feature to one whose routes, messages or events it calls at runtime, labeled with what it calls. Before changing a feature, check what uses it.',
     '',
     graph,
     '',
-    ...(names.length ? ['| Feature | Uses | Used by |', '| --- | --- | --- |', ...featureRows, ''] : []),
+    ...(names.length ? ['| Feature | Imports | Calls | Used by | Outside services |', '| --- | --- | --- | --- | --- |', ...featureRows, ''] : []),
     '## Modules',
     '',
     ...(modules.length
@@ -180,14 +241,45 @@ export async function generateDocs(root) {
     outputs.set(`features/${name}/CLAUDE.md`, FEATURE_CLAUDE_MD);
     const spec = specs.get(name);
     if (spec === undefined) continue;
+    const usedBy = usedByOf(name);
+    const external = externalOf(name);
+    const collapse = usedBy.length > MAX_USED_BY_NODES;
+    const neighbours = [...new Set([...importsOf(name), ...callsOf(name), ...(collapse ? [] : usedBy)])].sort();
+    const self = nodeId(name);
+    const diagram = ['```mermaid', 'flowchart TD',
+      `  ${self}["${title(name)}"]`,
+      `  style ${self} stroke-width:3px`,
+      ...neighbours.map(other => `  ${nodeId(other)}["${title(other)}"]`),
+      ...(collapse ? [`  used_by_${self}["Used by ${usedBy.length} features"]`] : []),
+      ...importsOf(name).map(other => `  ${self} --> ${nodeId(other)}`),
+      ...callsOf(name).map(owner => `  ${self} -.->|${callLabel(name, owner)}| ${nodeId(owner)}`),
+      ...(collapse ? [`  used_by_${self} --> ${self}`] : usedBy.flatMap(other => [
+        ...(imports.get(other).has(name) ? [`  ${nodeId(other)} --> ${self}`] : []),
+        ...(calls.get(other).has(name) ? [`  ${nodeId(other)} -.->|${callLabel(other, name)}| ${self}`] : []),
+      ])),
+      ...(external.length ? [
+        `  subgraph outside_${self}["Outside this project"]`,
+        ...external.map((service, index) => `    ext_${self}_${index}["${escapeLabel(service)}"]`),
+        '  end',
+        ...external.map((_, index) => `  ${self} -.-> ext_${self}_${index}`),
+      ] : []),
+      '```'].join('\n');
+    const usedByText = usedBy.map(other => `[${other}](../${other}/SPEC.md) (${[
+      imports.get(other).has(name) ? 'imports it' : '',
+      calls.get(other).has(name) ? `calls ${code(callTokens(other, name))}` : '',
+    ].filter(Boolean).join('; ')})`).join(', ');
     const section = [
       START,
       '## Dependencies',
       '',
-      'Generated by `npm run docs:generate`; see the [project dependency map](../../DEPENDENCIES.md).',
+      'Generated by `npm run docs:generate` from the code\'s imports and the Interfaces sections of the feature specs; do not edit it by hand. Solid arrows are imports. Dotted arrows are calls at runtime, labeled with what is called, and outside services. The [project dependency map](../../DEPENDENCIES.md) shows every feature together.',
       '',
-      `- **Uses:** ${featureLinks(usesOf(name), '../')}`,
-      `- **Used by:** ${featureLinks(usedByOf(name), '../')}`,
+      `- **Imports:** ${featureLinks(importsOf(name), '../')}`,
+      `- **Calls:** ${callsOf(name).length ? callsOf(name).map(owner => `[${owner}](../${owner}/SPEC.md) (${code(callTokens(name, owner))})`).join(', ') : 'None.'}`,
+      `- **Used by:** ${usedBy.length ? usedByText : 'None.'}`,
+      `- **Outside services:** ${external.length ? external.join('; ') : 'None.'}`,
+      '',
+      diagram,
       END,
     ].join('\n');
     const next = replaceSection(spec, START, END, section);

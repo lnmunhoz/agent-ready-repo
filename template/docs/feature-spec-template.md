@@ -7,6 +7,14 @@ One short paragraph: what this feature does for the user and what it owns. Someo
 - What must be true, written as checkable statements. Include edge cases and error behavior.
 - Say what happens, not how the code does it. The code already shows how.
 
+## Interfaces
+
+- **Serves:** Routes or endpoints this feature answers, each in backticks: `/api/tasks`. None.
+- **Handles:** Messages, commands or events it owns, in backticks: `task-completed`. None.
+- **Stores:** Storage keys, tables or files it owns, and what each holds. None.
+- **Uses:** What it relies on from other features at runtime, with a link to each. None.
+- **External:** Services outside the project it talks to, separated by semicolons: Stripe API (payments); Postgres. None.
+
 ## Boundaries
 
 - What this feature owns, and what it deliberately leaves to other features.
@@ -19,6 +27,9 @@ How to check it works: the test command, plus any manual check in the running ap
 
 <!--
 Copy this file to features/<name>/SPEC.md and replace every line above.
-`npm run docs:generate` appends a generated "Dependencies" section below;
-do not edit that section by hand.
+Keep all five Interfaces lines, writing "None." when one is empty.
+Anything in backticks under Serves or Handles must belong to this feature
+alone; when another feature's code mentions it, the generated diagram draws
+a runtime call between them. `npm run docs:generate` appends a generated
+"Dependencies" section with a diagram below; do not edit it by hand.
 -->

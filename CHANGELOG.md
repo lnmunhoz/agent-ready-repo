@@ -4,6 +4,8 @@ Notable changes to the product, newest first. Each date gets one section, and ea
 
 ## 2026-11-06
 
+- Every feature `SPEC.md` now ends with a generated dependency diagram, as in the Focus / dot project this template came from. It shows what the feature imports, the routes, messages or events it calls on other features at runtime, which features use it, and its outside services. Feature specs gain an **Interfaces** section (**Serves**, **Handles**, **Stores**, **Uses**, **External**) that drives the runtime arrows, and `npm run check` makes sure each route or message has exactly one owner. `DEPENDENCIES.md` shows the same runtime calls.
+
 - Fixed: setting up a project no longer rewrites the placeholders inside the template's own test file, which made one test fail in every new project. When a sandbox blocks some folders, the command now creates everything else and lists what it couldn't write.
 - `--existing` adds agent-ready-repo to a project that already has files: it keeps them, merges `package.json` scripts and missing `.gitignore` and `CLAUDE.md` lines, and marks documents to merge by hand with setup notes. Checks now skip files Git ignores, so build output and vendored code in existing projects don't cause false alarms.
 

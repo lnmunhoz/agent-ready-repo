@@ -53,15 +53,17 @@ None of this needs special tools. It's plain Markdown, a folder layout, and two 
 | `CLAUDE.md` | Nothing new: it points Claude Code at `AGENTS.md` and `MEMORY.md`, so one set of files serves every agent | Rarely |
 | `MEMORY.md` | What has been learned across the project that the code doesn't say? Ends with an index of the feature memories | An agent learns something project-wide the next one will need |
 | `SPEC.md` | What must the product do? User stories with acceptance criteria | What users can see or rely on changes |
-| `features/<name>/SPEC.md` | What must this feature do, what does it own, how do I check it, and what depends on it? | The feature's behavior or boundaries change |
+| `features/<name>/SPEC.md` | What must this feature do, what does it serve, store and call, how do I check it, and what depends on it? Ends with a generated diagram of its connections | The feature's behavior, interfaces or boundaries change |
 | `features/<name>/MEMORY.md` | What was learned working on this feature: decisions, traps, dead ends | An agent learns something about the feature |
 | `features/<name>/CLAUDE.md` | Generated: makes Claude Code load the feature's spec and memory when it works there | Automatically |
-| `DEPENDENCIES.md` | What connects to what? Generated from the imports | Automatically, by `npm run docs:generate` |
+| `DEPENDENCIES.md` | What connects to what? Generated from the imports and each feature's Interfaces | Automatically, by `npm run docs:generate` |
 | `CHANGELOG.md` | What changed recently, and why? | A notable feature, fix or milestone lands |
 | `TODOS.md` | What's left, and what's in progress? | A task is added, started or finished |
 | `README.md` | How do I install and run it? | Setup or usage changes |
 
 You can read them all in [template/](template/). [example/](example/features/) shows two finished features, [tasks](example/features/tasks/SPEC.md) and [cli](example/features/cli/SPEC.md), each with its spec, memory and tests.
+
+Every feature's `SPEC.md` ends with a generated diagram of its connections: what it imports, which features' routes, messages or events it calls at runtime (labeled with what it calls), which features use it, and the outside services it talks to. Runtime calls are found by searching the other features' code for what each spec lists under **Serves** and **Handles**, so nothing is drawn by hand and nothing goes stale. More than 12 users collapse into one node. [The command line example](example/features/cli/SPEC.md#dependencies) shows one, and GitHub renders it.
 
 Memory lives in the repository, not in one agent's private memory folder, so switching from Claude Code to Codex (or to a teammate) loses nothing. The spec says what must be true; the memory next to it says what was learned getting there. [docs/memory.md](docs/memory.md) explains the design and how each agent finds the right memory.
 
@@ -89,8 +91,9 @@ Orienting means reading the root spec and memory, the spec and memory of the fea
 
 - No setup notes (`<!-- setup: … -->`) or template placeholders are left.
 - `README.md`, `AGENTS.md`, `MEMORY.md`, `SPEC.md`, `CHANGELOG.md`, `TODOS.md` and `DEPENDENCIES.md` exist.
-- Every folder in `features/` has a `SPEC.md` with a title and non-empty **Behavior**, **Boundaries** and **Verification** sections.
-- `DEPENDENCIES.md` and each feature's generated **Dependencies** section match the current imports.
+- Every folder in `features/` has a `SPEC.md` with a title and non-empty **Behavior**, **Interfaces**, **Boundaries** and **Verification** sections.
+- Every feature `SPEC.md` has an **Interfaces** section with its five lines: **Serves**, **Handles**, **Stores**, **Uses** and **External**. Each route, message or event under Serves or Handles belongs to exactly one feature.
+- `DEPENDENCIES.md` and each feature's generated **Dependencies** section and diagram match the current imports and Interfaces.
 - Every feature has a `MEMORY.md` and a generated `CLAUDE.md`. Memory entries are dated (`- **2026-01-31** · …`), the root memory stays under 150 lines and each feature memory under 80, and the root memory's index of feature memories is current.
 - `TODOS.md` has **Open** and **Completed** sections, with no finished items under Open and no unfinished ones under Completed.
 - `CHANGELOG.md` has one dated section per day (`## 2026-01-31`), newest first.

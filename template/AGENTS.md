@@ -20,24 +20,24 @@ This project follows the [agent-ready-repo](https://github.com/lnmunhoz/agent-re
 
 ## Workflow
 
-1. **Orient.** Read `README.md`, `MEMORY.md`, `TODOS.md` and the root `SPEC.md`. Before reading or editing files in a feature, read its `SPEC.md` and `MEMORY.md` (Claude Code loads them for you; other agents must open them). Check `git status` so you don't overwrite someone's work in progress. Before changing a feature, look at its **Used by** list to see what else depends on it.
+1. **Orient.** Read `README.md`, `MEMORY.md`, `TODOS.md` and the root `SPEC.md`. Before reading or editing files in a feature, read its `SPEC.md` and `MEMORY.md` (Claude Code loads them for you; other agents must open them). Check `git status` so you don't overwrite someone's work in progress. Before changing a feature, look at the **Used by** list and diagram at the end of its `SPEC.md` to see what else depends on it, by import or by calling it at runtime.
 2. **Plan.** For work across several files, write a short plan first.
 3. **Test first.** Add or adjust a test for any behavior that can be checked without a person looking at it, then implement.
 4. **Implement inside the feature.** Keep a feature's code in its folder. To use another feature, import from it; don't copy its code.
 5. **Verify.** Run `npm test` and `npm run check`. When a change affects something tests can't see (a screen, a sound, an external service), check it in the running app if you can. Report exactly what was and wasn't verified.
 6. **Update the documents in the same change:**
-   - the feature's `SPEC.md` when its behavior or boundaries change;
+   - the feature's `SPEC.md` when its behavior, interfaces or boundaries change. List every route, message or event it answers under **Serves** or **Handles**, and every outside service under **External**: the generated diagrams are built from these lines;
    - the root `SPEC.md` when what users can see or rely on changes;
    - `CHANGELOG.md` for a notable feature, fix or milestone, written for the people who use the product;
    - `README.md` when installation or usage changes;
    - the feature's `MEMORY.md`, or the root one, when you learned something the next agent will need (see [Project memory](#project-memory));
-   - `npm run docs:generate` when you add a feature, change imports between features, or add memory entries.
+   - `npm run docs:generate` when you add a feature, change imports or Interfaces, or add memory entries.
 7. **Review before committing.** Read the diff and the staged files. Never commit secrets, build output, logs or `node_modules/`.
 8. **Ask before publishing.** After a big change (a new feature, a rework across several files, a merge) is finished and verified, ask whether to commit and push, saying which files or commits would go out and to which branch. Push only after a yes.
 
 ## Adding a feature
 
-1. Create `features/<name>/`. Copy `docs/feature-spec-template.md` into it as `SPEC.md` and fill in every section, and copy `docs/feature-memory-template.md` as `MEMORY.md` with its example entries removed.
+1. Create `features/<name>/`. Copy `docs/feature-spec-template.md` into it as `SPEC.md` and fill in every section, including all five Interfaces lines (`None.` when empty), and copy `docs/feature-memory-template.md` as `MEMORY.md` with its example entries removed.
 2. Name files after what they do (`temporary-access.mjs`, not `utils.mjs`).
 3. Add tests under `test/`, then run `npm run docs:generate` and `npm run check`.
 
@@ -76,4 +76,4 @@ Rules for both:
 
 - `npm test`: run the tests.
 - `npm run check`: check that the documents exist, are well formed, link correctly and match the code.
-- `npm run docs:generate`: regenerate `DEPENDENCIES.md`, each feature's Dependencies section and `CLAUDE.md`, and the feature memory index in `MEMORY.md`.
+- `npm run docs:generate`: regenerate `DEPENDENCIES.md`, each feature's Dependencies section and diagram, each feature's `CLAUDE.md`, and the feature memory index in `MEMORY.md`.

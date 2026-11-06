@@ -5,12 +5,12 @@ import { spawnSync } from 'node:child_process';
 import { access, readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { staleDocs } from './generate-docs.mjs';
+import { INTERFACE_LINES, parseInterfaces, staleDocs } from './generate-docs.mjs';
 
 export const REQUIRED_FILES = ['README.md', 'AGENTS.md', 'MEMORY.md', 'SPEC.md', 'CHANGELOG.md', 'TODOS.md', 'DEPENDENCIES.md'];
 export const MEMORY_MAX_LINES = 150;
 export const FEATURE_MEMORY_MAX_LINES = 80;
-export const FEATURE_SPEC_SECTIONS = ['Behavior', 'Boundaries', 'Verification'];
+export const FEATURE_SPEC_SECTIONS = ['Behavior', 'Interfaces', 'Boundaries', 'Verification'];
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
 // Where `npx github:lnmunhoz/agent-ready-repo --existing` saves template files that clashed with the project's own.
 export const MERGE_DIR = '.agent-ready-merge';
@@ -108,6 +108,12 @@ export function checkFeatureSpec(path, markdown) {
   for (const name of FEATURE_SPEC_SECTIONS) {
     if (!parts.has(name)) problems.push(`${path} needs a "## ${name}" section.`);
     else if (!parts.get(name).some(line => line.trim())) problems.push(`${path}: "## ${name}" is empty.`);
+  }
+  if (parts.has('Interfaces')) {
+    const lines = parseInterfaces(markdown);
+    for (const key of INTERFACE_LINES) {
+      if (!lines[key]) problems.push(`${path}: Interfaces needs a "- **${key}:** …" line (write "None." when there is nothing).`);
+    }
   }
   return problems;
 }

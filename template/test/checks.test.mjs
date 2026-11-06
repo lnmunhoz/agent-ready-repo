@@ -24,7 +24,9 @@ test('setup notes and unreplaced placeholders are listed until they are filled i
   }
 });
 
-const spec = title => `# ${title}\n\nSummary.\n\n## Behavior\n\n- Works.\n\n## Boundaries\n\n- Small.\n\n## Verification\n\nRun tests.\n`;
+const interfaces = ({ serves = 'None.', handles = 'None.', external = 'None.' } = {}) =>
+  `## Interfaces\n\n- **Serves:** ${serves}\n- **Handles:** ${handles}\n- **Stores:** None.\n- **Uses:** None.\n- **External:** ${external}\n\n`;
+const spec = (title, lines) => `# ${title}\n\nSummary.\n\n## Behavior\n\n- Works.\n\n${interfaces(lines)}## Boundaries\n\n- Small.\n\n## Verification\n\nRun tests.\n`;
 
 async function fixture(files) {
   const root = await mkdtemp(join(tmpdir(), 'agent-ready-'));
@@ -59,7 +61,9 @@ test('MEMORY.md entries are dated and the file stays short', () => {
 test('feature SPEC.md needs a title and non-empty standard sections', () => {
   assert.deepEqual(checkFeatureSpec('x', spec('Tasks')), []);
   const problems = checkFeatureSpec('x', '# Tasks\n\n## Behavior\n\n## Boundaries\n\n- a\n');
-  assert.deepEqual(problems, ['x: "## Behavior" is empty.', 'x needs a "## Verification" section.']);
+  assert.deepEqual(problems, ['x: "## Behavior" is empty.', 'x needs a "## Interfaces" section.', 'x needs a "## Verification" section.']);
+  const partial = spec('Tasks').replace('- **Stores:** None.\n', '');
+  assert.deepEqual(checkFeatureSpec('x', partial), ['x: Interfaces needs a "- **Stores:** …" line (write "None." when there is nothing).']);
 });
 
 test('markdown links skip URLs, anchors and code', () => {
@@ -87,9 +91,9 @@ test('generated docs map imports between features and list who uses each feature
     assert.deepEqual(await staleDocs(root), { stale: [], problems: [] });
 
     const map = await readFile(join(root, 'DEPENDENCIES.md'), 'utf8');
-    assert.match(map, /cli --> tasks/);
+    assert.match(map, /f_cli --> f_tasks/);
     assert.match(map, /`features\/cli\/main\.mjs` \| `features\/cli\/format\.mjs`, `features\/tasks\/tasks\.mts`/);
-    assert.match(await readFile(join(root, 'features/tasks/SPEC.md'), 'utf8'), /\*\*Used by:\*\* \[cli\]\(\.\.\/cli\/SPEC\.md\)/);
+    assert.match(await readFile(join(root, 'features/tasks/SPEC.md'), 'utf8'), /\*\*Used by:\*\* \[cli\]\(\.\.\/cli\/SPEC\.md\) \(imports it\)/);
 
     await writeFile(join(root, 'features/cli/main.mjs'), "import './format.mjs';\n");
     assert.ok((await staleDocs(root)).stale.includes('DEPENDENCIES.md'));
@@ -139,6 +143,54 @@ test('skill copies for Claude Code and Codex must match', async () => {
       '.claude/skills/extra/SKILL.md has no copy in .agents/skills/.',
       'Skill copies differ: .claude/skills/todo/SKILL.md and .agents/skills/todo/SKILL.md.',
     ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('runtime calls come from Serves and Handles, and every feature spec gets a diagram', async () => {
+  const root = await fixture({
+    'MEMORY.md': '# Project memory\n',
+    'features/api/SPEC.md': spec('API', { serves: '`/api/tasks`, `/api/users`.', external: 'Postgres (task rows); Stripe API.' }),
+    'features/api/MEMORY.md': '# m\n',
+    'features/api/server.mjs': "export const routes = ['/api/tasks', '/api/users'];\n",
+    'features/web/SPEC.md': spec('Web app'),
+    'features/web/MEMORY.md': '# m\n',
+    'features/web/page.mjs': "fetch('/api/tasks');\n",
+  });
+  try {
+    await writeDocs(root);
+    const api = await readFile(join(root, 'features/api/SPEC.md'), 'utf8');
+    assert.match(api, /- \*\*Used by:\*\* \[web\]\(\.\.\/web\/SPEC\.md\) \(calls `\/api\/tasks`\)/);
+    assert.match(api, /- \*\*Outside services:\*\* Postgres \(task rows\); Stripe API/);
+    assert.ok(api.includes('  f_web -.->|"/api/tasks"| f_api'));
+    assert.ok(api.includes('  subgraph outside_f_api["Outside this project"]'));
+    assert.ok(api.includes('    ext_f_api_1["Stripe API"]'));
+    const web = await readFile(join(root, 'features/web/SPEC.md'), 'utf8');
+    assert.match(web, /- \*\*Calls:\*\* \[api\]\(\.\.\/api\/SPEC\.md\) \(`\/api\/tasks`\)/);
+    assert.match(web, /```mermaid\nflowchart TD\n  f_web\["Web app"\]\n  style f_web stroke-width:3px\n/);
+    assert.ok((await readFile(join(root, 'DEPENDENCIES.md'), 'utf8')).includes('  f_web -.->|"/api/tasks"| f_api'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a feature used by many others shows them as one node, and a route has one owner', async () => {
+  const files = { 'MEMORY.md': '# m\n', 'features/core/SPEC.md': spec('Core', { handles: '`refresh`.' }), 'features/core/MEMORY.md': '# m\n', 'features/core/core.mjs': 'export {};\n' };
+  for (let i = 0; i < 13; i += 1) {
+    files[`features/user${i}/SPEC.md`] = spec(`User ${i}`);
+    files[`features/user${i}/MEMORY.md`] = '# m\n';
+    files[`features/user${i}/index.mjs`] = "import '../core/core.mjs';\n";
+  }
+  files['features/user0/SPEC.md'] = spec('User 0', { handles: '`refresh`.' });
+  const root = await fixture(files);
+  try {
+    const { problems } = await writeDocs(root);
+    assert.deepEqual(problems, ['`refresh` is listed under Serves or Handles in both features/core and features/user0; exactly one feature must own it.']);
+    const core = await readFile(join(root, 'features/core/SPEC.md'), 'utf8');
+    assert.ok(core.includes('  used_by_f_core["Used by 13 features"]'));
+    assert.ok(!core.includes('f_user0["User 0"]'));
+    assert.match(core, /\[user12\]\(\.\.\/user12\/SPEC\.md\) \(imports it\)/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
