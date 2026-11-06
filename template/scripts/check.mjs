@@ -1,6 +1,7 @@
 // Checks that the project's documents are present, well formed and current.
 // Each check returns a list of problems; `npm run check` prints them all.
 
+import { spawnSync } from 'node:child_process';
 import { access, readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -11,6 +12,10 @@ export const MEMORY_MAX_LINES = 150;
 export const FEATURE_MEMORY_MAX_LINES = 80;
 export const FEATURE_SPEC_SECTIONS = ['Behavior', 'Boundaries', 'Verification'];
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
+// Where `npx github:lnmunhoz/agent-ready-repo --existing` saves template files that clashed with the project's own.
+export const MERGE_DIR = '.agent-ready-merge';
+// The template files that contain {{placeholders}} before a project is created.
+const PLACEHOLDER_FILES = new Set(['README.md', 'AGENTS.md', 'SPEC.md', 'CHANGELOG.md', 'package.json']);
 
 const toPosix = path => path.split(sep).join('/');
 
@@ -24,6 +29,19 @@ async function walk(dir) {
     ? (SKIP_DIRS.has(entry.name) ? [] : walk(join(dir, entry.name)))
     : [join(dir, entry.name)]));
   return nested.flat().sort();
+}
+
+// The project's own files: in a Git repository, what Git tracks or would track
+// (so ignored folders such as build output and vendored code are skipped);
+// otherwise every file outside the usual generated folders.
+export async function projectFiles(root) {
+  const git = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' });
+  if (git.status !== 0) return walk(root);
+  const files = [];
+  for (const path of git.stdout.split('\0').filter(Boolean)) {
+    if (await exists(join(root, path))) files.push(join(root, path));
+  }
+  return files.sort();
 }
 
 // Returns the lines under each "## Heading", keyed by heading text.
@@ -106,8 +124,8 @@ export function markdownLinks(markdown) {
 
 export async function checkLinks(root) {
   const problems = [];
-  for (const file of await walk(root)) {
-    if (!file.endsWith('.md')) continue;
+  for (const file of await projectFiles(root)) {
+    if (!file.endsWith('.md') || toPosix(relative(root, file)).startsWith(`${MERGE_DIR}/`)) continue;
     for (const target of markdownLinks(await readFile(file, 'utf8'))) {
       if (!await exists(resolve(dirname(file), target))) {
         problems.push(`${toPosix(relative(root, file))}: broken link to ${target}`);
@@ -122,17 +140,25 @@ export function setupNotes(text) {
   return [...text.matchAll(/<!--\s*setup:\s*([\s\S]*?)\s*-->/g)].map(match => match[1].replace(/\s+/g, ' '));
 }
 
-/** Lists what is left to fill in after creating the project: setup notes and unreplaced placeholders. */
+/** Lists what is left to fill in after creating the project: setup notes, unreplaced placeholders and files waiting to be merged. */
 export async function checkSetup(root) {
   const problems = [];
-  for (const file of await walk(root)) {
-    if (!/\.(?:md|json)$/.test(file)) continue;
+  const merging = [];
+  for (const file of await projectFiles(root)) {
     const path = toPosix(relative(root, file));
+    if (path.startsWith(`${MERGE_DIR}/`)) { merging.push(path); continue; }
+    if (!path.endsWith('.md')) {
+      if (!PLACEHOLDER_FILES.has(path)) continue;
+    }
     const text = await readFile(file, 'utf8');
     for (const note of setupNotes(text)) problems.push(`Finish setup in ${path}: ${note}`);
+    if (!PLACEHOLDER_FILES.has(path)) continue;
     for (const [placeholder] of text.matchAll(/\{\{(?:name|description|package|date)\}\}/g)) {
       problems.push(`Finish setup in ${path}: replace ${placeholder}.`);
     }
+  }
+  if (merging.length) {
+    problems.push(`Finish setup: merge the template's versions in ${MERGE_DIR}/ into your own files (${merging.map(path => path.slice(MERGE_DIR.length + 1)).join(', ')}), then delete ${MERGE_DIR}/.`);
   }
   return problems;
 }

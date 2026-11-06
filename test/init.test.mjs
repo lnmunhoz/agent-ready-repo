@@ -17,7 +17,7 @@ async function withFolder(fn) {
 
 // Replaces every setup note with real content, as an agent would.
 async function finishSetup(root, notes) {
-  for (const file of new Set(notes.map(note => note.match(/^Finish setup in (\S+):/)[1]))) {
+  for (const file of new Set(notes.map(note => note.match(/^Finish setup in (\S+):/)?.[1]).filter(Boolean))) {
     const text = await readFile(join(root, file), 'utf8');
     await writeFile(join(root, file), text.replace(/<!--\s*setup:[\s\S]*?-->/g, 'Written by the agent.'));
   }
@@ -25,7 +25,8 @@ async function finishSetup(root, notes) {
 
 test('arguments: folder, --name and --description, with or without =', () => {
   assert.deepEqual(parseArgs(['app', '--name', 'EMOM Timer', '--description=Counts rounds.']),
-    { folder: 'app', name: 'EMOM Timer', description: 'Counts rounds.', help: false });
+    { folder: 'app', name: 'EMOM Timer', description: 'Counts rounds.', existing: false, help: false });
+  assert.equal(parseArgs(['--existing']).existing, true);
   assert.throws(() => parseArgs(['--name']), /--name needs a value/);
   assert.throws(() => parseArgs(['--force']), /Unknown option --force/);
   assert.equal(packageName('EMOM Timer (iOS)'), 'emom-timer-ios');
@@ -73,6 +74,49 @@ test('nothing is overwritten: an existing file stops the whole run', async () =>
     await assert.rejects(createProject({ folder, git: false }), /already exist, so nothing was changed: README\.md/);
     assert.deepEqual((await readdir(folder)).sort(), ['README.md', 'notes.txt']);
     assert.equal(await readFile(join(folder, 'README.md'), 'utf8'), 'mine');
+  });
+});
+
+test('--existing keeps the project\'s files, merges what it safely can and marks the rest', async () => {
+  await withFolder(async folder => {
+    await writeFile(join(folder, 'README.md'), '# My app\n\nRun it with expo start.\n');
+    await writeFile(join(folder, 'package.json'), JSON.stringify({ name: 'my-app', scripts: { test: 'jest', start: 'expo start' } }, null, 2));
+    await writeFile(join(folder, '.gitignore'), 'node_modules/\n.expo/\n');
+    await writeFile(join(folder, 'CLAUDE.md'), 'Use pnpm.\n');
+    spawnSync('git', ['init', '-q'], { cwd: folder });
+
+    const project = await createProject({ folder, name: 'My app', description: 'A phone app.', existing: true });
+    const merged = Object.fromEntries(project.merged.map(({ path, how }) => [path, how]));
+    assert.deepEqual(Object.keys(merged).sort(), ['.gitignore', 'CLAUDE.md', 'README.md', 'package.json']);
+    assert.match(merged['package.json'], /added the check, docs:generate scripts/);
+
+    const pkg = JSON.parse(await readFile(join(folder, 'package.json'), 'utf8'));
+    assert.equal(pkg.scripts.test, 'jest');
+    assert.equal(pkg.scripts.check, 'node scripts/check.mjs');
+    assert.equal(await readFile(join(folder, 'CLAUDE.md'), 'utf8'), 'Use pnpm.\n\n@AGENTS.md\n@MEMORY.md\n');
+    const ignore = await readFile(join(folder, '.gitignore'), 'utf8');
+    assert.match(ignore, /^node_modules\/\n\.expo\/\n\n# Added by agent-ready-repo\n/);
+    assert.equal(ignore.match(/node_modules/g).length, 1);
+    const readme = await readFile(join(folder, 'README.md'), 'utf8');
+    assert.match(readme, /^# My app\n\nRun it with expo start\.\n\n<!-- setup: This file existed before/);
+    assert.match(await readFile(join(folder, '.agent-ready-merge/README.md'), 'utf8'), /^# My app\n\nA phone app\./);
+
+    const notes = project.notes.join('\n');
+    assert.match(notes, /Finish setup in README\.md: This file existed before agent-ready-repo was added/);
+    assert.match(notes, /merge the template's versions in \.agent-ready-merge\/ into your own files \(README\.md\)/);
+    assert.match(nextSteps(project), /Added agent-ready-repo to My app/);
+
+    await finishSetup(folder, project.notes);
+    await rm(join(folder, '.agent-ready-merge'), { recursive: true });
+    const check = run(folder, ['scripts/check.mjs']);
+    assert.equal(check.status, 0, check.stderr);
+  });
+});
+
+test('an existing file stops the run with a pointer to --existing', async () => {
+  await withFolder(async folder => {
+    await writeFile(join(folder, 'package.json'), '{}');
+    await assert.rejects(createProject({ folder, git: false }), /run the same command with --existing/);
   });
 });
 

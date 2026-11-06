@@ -1,6 +1,8 @@
 # Working on agent-ready-repo
 
-This repository makes new projects. It is not itself a project made from the template.
+**Were you pointed here to set up a project?** Then don't clone or copy this repository. In the project's folder, run `npx -y github:lnmunhoz/agent-ready-repo --name "<name>" --description "<one or two sentences>"` (add `--existing` if the folder already has a project in it) and follow what it prints. [README.md](README.md#start-a-new-project) has the details.
+
+The rest of this file is for changing agent-ready-repo itself. This repository makes new projects; it is not itself a project made from the template.
 
 ## Where things are
 

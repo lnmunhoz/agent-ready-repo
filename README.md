@@ -16,6 +16,21 @@ That takes a few seconds. It copies the project files, fills in the name, date a
 
 Pass a folder name first to create the project somewhere else (`npx -y github:lnmunhoz/agent-ready-repo my-app --name …`), or `--help` for the options.
 
+### Adding it to an existing project
+
+Run the same command with `--existing` in the project's folder. Nothing of yours is overwritten:
+
+- `package.json` gets the missing `check` and `docs:generate` scripts; your `test` script stays.
+- `.gitignore` and `CLAUDE.md` get only the lines they're missing.
+- Documents you already have, such as `README.md`, keep their content and get a setup note at the end. The template's version is saved in `.agent-ready-merge/` to merge in. Delete that folder when you're done.
+- Your code stays where it is. Describe where it lives in `AGENTS.md`, and move it into `features/` one feature at a time if you like ([docs/adopting.md](docs/adopting.md)).
+
+Without `--existing`, the command stops before changing anything if a file would clash, and says so.
+
+### Requirements
+
+Node.js 22 or later, whatever the project itself is written in. If `npx` can't fetch from GitHub, clone this repository and run `node <clone>/bin/init.mjs <project folder> --name … --description …` instead.
+
 ## Why
 
 Agents like Claude Code and Codex start every session knowing nothing about your project. They find their way the way a new teammate does: by reading what's written down and searching the code. A project made from this template makes both cheap:

@@ -2,7 +2,7 @@
 
 {{description}}
 
-<!-- setup: Expand the paragraph above into what the project is, its main parts and how they run (platforms, services, the command that starts it). Then delete this comment. -->
+<!-- setup: Expand the paragraph above into what the project is, its main parts and how they run (platforms, services, the command that starts it). If code already exists outside features/, say where it lives and update "Where things are" to match. Then delete this comment. -->
 
 This project follows the [agent-ready-repo](https://github.com/lnmunhoz/agent-ready-repo) conventions; its README explains the reasons behind the rules below.
 
