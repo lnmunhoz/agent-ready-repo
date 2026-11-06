@@ -68,6 +68,17 @@ When those are good, plain search is fast and always current. That's why this te
 
 **With it:** any session, human or agent, can pick up any task from the files alone.
 
+## What about agent memory?
+
+Claude Code keeps an automatic memory: a `MEMORY.md` index plus short notes, stored in your home folder (`~/.claude/projects/<project>/memory/`), not in the repository. Other agents have their own versions. It's useful, but it isn't a substitute for these documents:
+
+- **It's private.** Only one agent, for one person, on one machine, sees it. Teammates, CI, other agents, and you on another computer don't.
+- **Nothing checks it.** A memory can go stale without anything failing, and the agent will still trust it.
+
+So the rule is: **facts about the project go in the repository; facts about you go in memory.** How to build or test the project, a convention, a design decision, a trap in the code: these belong in `AGENTS.md`, a `SPEC.md` or `docs/`. Your preferences, how you like to work, and pointers to your own accounts and tools belong in memory. When a memory turns out to be true for the project, move it into the repository and delete the memory.
+
+That's why the template has no `MEMORY.md` of its own. Committed to the repository, it would only duplicate `AGENTS.md`.
+
 ## The task list and the changelog
 
 These two files carry the project's memory between sessions:

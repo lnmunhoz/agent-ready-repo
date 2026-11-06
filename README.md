@@ -23,6 +23,8 @@ None of this needs special tools. It's plain Markdown, a folder layout, and two 
 | [`TODOS.md`](TODOS.md) | What's left, and what's in progress? | A task is added, started or finished |
 | `README.md` | How do I install and run it? | Setup or usage changes |
 
+Agent memory, such as Claude Code's `MEMORY.md`, is deliberately left out. It lives on one person's machine, so facts about the project belong in these files and memory keeps only personal preferences. See [what about agent memory?](docs/principles.md#what-about-agent-memory)
+
 ## The principles
 
 1. **Organize by feature, not by layer.** Everything about tasks lives in `features/tasks/`, not spread across `controllers/`, `models/` and `views/`. One search, one folder.
