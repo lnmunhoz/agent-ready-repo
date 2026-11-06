@@ -3,8 +3,26 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkChangelog, checkFeatureSpec, checkMemory, checkSkillCopies, checkTodos, markdownLinks, MEMORY_MAX_LINES } from '../scripts/check.mjs';
+import { checkChangelog, checkFeatureSpec, checkMemory, checkSetup, checkSkillCopies, checkTodos, markdownLinks, MEMORY_MAX_LINES, setupNotes } from '../scripts/check.mjs';
 import { FEATURE_CLAUDE_MD, staleDocs, writeDocs } from '../scripts/generate-docs.mjs';
+
+test('setup notes and unreplaced placeholders are listed until they are filled in', async () => {
+  assert.deepEqual(setupNotes('a <!-- setup: Write the\n  user stories. --> b <!-- other -->'), ['Write the user stories.']);
+  const root = await fixture({
+    'SPEC.md': '# {{name}}\n\n<!-- setup: Write the user stories. -->\n',
+    'package.json': '{ "name": "{{package}}" }\n',
+    'notes.mjs': '// {{name}} in code is ignored\n',
+  });
+  try {
+    assert.deepEqual(await checkSetup(root), [
+      'Finish setup in SPEC.md: Write the user stories.',
+      'Finish setup in SPEC.md: replace {{name}}.',
+      'Finish setup in package.json: replace {{package}}.',
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 const spec = title => `# ${title}\n\nSummary.\n\n## Behavior\n\n- Works.\n\n## Boundaries\n\n- Small.\n\n## Verification\n\nRun tests.\n`;
 

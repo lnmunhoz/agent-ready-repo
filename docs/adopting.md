@@ -4,7 +4,7 @@ You don't need to restructure a working project in one go. Each step below is us
 
 ## 1. Write `AGENTS.md` (an hour, immediate payoff)
 
-Copy [AGENTS.md](../AGENTS.md) and rewrite it for your project:
+Copy [AGENTS.md](../template/AGENTS.md) and rewrite it for your project:
 
 - one paragraph on what the project is and how its parts run;
 - **Where things are**, describing the folders as they are today, not as you'd like them to be;
@@ -25,8 +25,8 @@ List the main things users do as user stories, with the behavior they rely on as
 
 ## 4. Move to feature folders, one feature at a time
 
-Pick the part of the code you change most often. Move it into `features/<name>/`, write its `SPEC.md` and `MEMORY.md` from the [spec template](feature-spec-template.md) and [memory template](feature-memory-template.md), move any lessons about it from the root `MEMORY.md` into its own memory, and keep the rest of the project where it is. Repeat when you next touch another area. Mixed layouts are fine during the move; `AGENTS.md` should say which areas are already in `features/`.
+Pick the part of the code you change most often. Move it into `features/<name>/`, write its `SPEC.md` and `MEMORY.md` from the [spec template](../template/docs/feature-spec-template.md) and [memory template](../template/docs/feature-memory-template.md), move any lessons about it from the root `MEMORY.md` into its own memory, and keep the rest of the project where it is. Repeat when you next touch another area. Mixed layouts are fine during the move; `AGENTS.md` should say which areas are already in `features/`.
 
 ## 5. Add the checks
 
-Copy `scripts/check.mjs` and `scripts/generate-docs.mjs`, add the `check` and `docs:generate` scripts to `package.json` (or call them from your own build tool), and run `npm run docs:generate`. Remove any check you aren't ready for yet from `runChecks` in `scripts/check.mjs`, and add it back once the documents are in shape. Finally, run the check in CI.
+Copy `template/scripts/check.mjs` and `template/scripts/generate-docs.mjs` into your project's `scripts/`, add the `check` and `docs:generate` scripts to `package.json` (or call them from your own build tool), and run `npm run docs:generate`. Remove any check you aren't ready for yet from `runChecks` in `scripts/check.mjs`, and add it back once the documents are in shape. Finally, run the check in CI.

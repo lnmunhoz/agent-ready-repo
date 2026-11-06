@@ -1,9 +1,4 @@
 node_modules/
-dist/
-build/
-coverage/
 *.log
-.env
-.env.*
-!.env.example
+*.tgz
 .DS_Store

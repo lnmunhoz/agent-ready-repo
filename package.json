@@ -1,17 +1,21 @@
 {
   "name": "agent-ready-repo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "A project template that coding agents can find their way around, with documents that stay current.",
+  "description": "Create projects that coding agents can find their way around, with documents that stay current.",
   "type": "module",
   "license": "MIT",
+  "bin": {
+    "agent-ready-repo": "bin/init.mjs"
+  },
+  "files": [
+    "bin",
+    "template"
+  ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "start": "node features/cli/main.mjs",
-    "test": "node --test",
-    "check": "node scripts/check.mjs",
-    "docs:generate": "node scripts/generate-docs.mjs"
+    "test": "node --test"
   }
 }

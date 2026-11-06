@@ -117,6 +117,26 @@ export async function checkLinks(root) {
   return problems;
 }
 
+/** Setup notes left by the project template: `<!-- setup: what to write here -->`. */
+export function setupNotes(text) {
+  return [...text.matchAll(/<!--\s*setup:\s*([\s\S]*?)\s*-->/g)].map(match => match[1].replace(/\s+/g, ' '));
+}
+
+/** Lists what is left to fill in after creating the project: setup notes and unreplaced placeholders. */
+export async function checkSetup(root) {
+  const problems = [];
+  for (const file of await walk(root)) {
+    if (!/\.(?:md|json)$/.test(file)) continue;
+    const path = toPosix(relative(root, file));
+    const text = await readFile(file, 'utf8');
+    for (const note of setupNotes(text)) problems.push(`Finish setup in ${path}: ${note}`);
+    for (const [placeholder] of text.matchAll(/\{\{(?:name|description|package|date)\}\}/g)) {
+      problems.push(`Finish setup in ${path}: replace ${placeholder}.`);
+    }
+  }
+  return problems;
+}
+
 /** Claude Code reads .claude/skills and Codex reads .agents/skills; the copies must match. */
 export async function checkSkillCopies(root) {
   const problems = [];
@@ -137,7 +157,7 @@ export async function checkSkillCopies(root) {
 }
 
 export async function runChecks(root) {
-  const problems = [];
+  const problems = [...await checkSetup(root)];
   for (const file of REQUIRED_FILES) if (!await exists(join(root, file))) problems.push(`Missing ${file}.`);
   if (await exists(join(root, 'TODOS.md'))) problems.push(...checkTodos(await readFile(join(root, 'TODOS.md'), 'utf8')));
   if (await exists(join(root, 'CHANGELOG.md'))) problems.push(...checkChangelog(await readFile(join(root, 'CHANGELOG.md'), 'utf8')));

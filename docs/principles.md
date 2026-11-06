@@ -30,7 +30,7 @@ When those are good, plain search is fast and always current. That's why this te
 
 ## 3. One question per document, one place per fact
 
-**The rule:** each document answers one question (see the table in the [README](../README.md#the-files)). A fact lives in exactly one place; everywhere else links to it.
+**The rule:** each document answers one question (see the table in the [README](../README.md#the-files-a-project-gets)). A fact lives in exactly one place; everywhere else links to it.
 
 **Without it:** the setup steps appear in the README, the contributing guide and a wiki page, and after a few months they disagree. The agent reads one at random and follows the stale one.
 
@@ -72,7 +72,7 @@ When those are good, plain search is fast and always current. That's why this te
 
 Agents learn things while they work: that a test is slow unless a server runs first, that a design was chosen for a reason, that an import style confuses some tools. Claude Code saves lessons like these in its automatic memory, but that memory lives in your home folder (`~/.claude/projects/<project>/memory/`), not in the repository. Codex keeps its own, separately. Neither can read the other's, and teammates, CI, and you on another computer can't read either. Switch from Claude Code to Codex mid-project and every lesson stays behind.
 
-So the project keeps its memory in the repository, at two levels: a `MEMORY.md` in each feature folder, next to that feature's spec, and a root [MEMORY.md](../MEMORY.md) for lessons that cross features.
+So the project keeps its memory in the repository, at two levels: a `MEMORY.md` in each feature folder, next to that feature's spec, and a root [MEMORY.md](../template/MEMORY.md) for lessons that cross features.
 
 - **Every agent reads it.** Claude Code loads the root memory at startup and a feature's memory as soon as it touches that feature (through the feature's generated `CLAUDE.md`). `AGENTS.md` tells every other agent to do the same.
 - **It holds what nothing else does:** decisions and their reasons, traps, dead ends. Not what the code, the specs or Git already say.
