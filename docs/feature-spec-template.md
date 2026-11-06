@@ -19,6 +19,6 @@ How to check it works: the test command, plus any manual check in the running ap
 
 <!--
 Copy this file to features/<name>/SPEC.md and replace every line above.
-`npm run docs:dependencies` appends a generated "Dependencies" section below;
+`npm run docs:generate` appends a generated "Dependencies" section below;
 do not edit that section by hand.
 -->

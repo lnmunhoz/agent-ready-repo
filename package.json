@@ -12,6 +12,6 @@
     "start": "node features/cli/main.mjs",
     "test": "node --test",
     "check": "node scripts/check.mjs",
-    "docs:dependencies": "node scripts/dependencies.mjs"
+    "docs:generate": "node scripts/generate-docs.mjs"
   }
 }

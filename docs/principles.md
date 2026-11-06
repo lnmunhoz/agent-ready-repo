@@ -72,12 +72,14 @@ When those are good, plain search is fast and always current. That's why this te
 
 Agents learn things while they work: that a test is slow unless a server runs first, that a design was chosen for a reason, that an import style confuses some tools. Claude Code saves lessons like these in its automatic memory, but that memory lives in your home folder (`~/.claude/projects/<project>/memory/`), not in the repository. Codex keeps its own, separately. Neither can read the other's, and teammates, CI, and you on another computer can't read either. Switch from Claude Code to Codex mid-project and every lesson stays behind.
 
-So the project keeps its memory in the repository, in [MEMORY.md](../MEMORY.md):
+So the project keeps its memory in the repository, at two levels: a `MEMORY.md` in each feature folder, next to that feature's spec, and a root [MEMORY.md](../MEMORY.md) for lessons that cross features.
 
-- **Every agent reads it.** Claude Code loads it through `CLAUDE.md`; `AGENTS.md` tells every other agent to read it at the start of a session.
-- **It holds what nothing else does:** decisions and their reasons, traps, environment quirks. Not what the code, the specs or Git already say.
+- **Every agent reads it.** Claude Code loads the root memory at startup and a feature's memory as soon as it touches that feature (through the feature's generated `CLAUDE.md`). `AGENTS.md` tells every other agent to do the same.
+- **It holds what nothing else does:** decisions and their reasons, traps, dead ends. Not what the code, the specs or Git already say.
 - **Entries are dated,** so a stale one is easy to spot and question.
-- **It's kept short.** Every session loads it, so `npm run check` fails above 150 lines. When an entry becomes a standing rule, it moves into `AGENTS.md` or a `SPEC.md`; when it turns out wrong, it's deleted.
+- **It's kept short.** `npm run check` fails above 150 lines at the root and 80 per feature. When an entry becomes a standing rule, it moves into `AGENTS.md` or a `SPEC.md`; when it turns out wrong, it's deleted.
+
+[docs/memory.md](memory.md) covers the design in detail, including why it uses one file per feature rather than a folder of many memory files.
 
 Private agent memory still has a job: **facts about you go there; facts about the project go in the repository.** How you like to work, your preferences, and pointers to your own accounts and tools stay private. `AGENTS.md` tells agents to save project lessons in `MEMORY.md` instead of their private memory.
 

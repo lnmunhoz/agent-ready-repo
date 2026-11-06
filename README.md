@@ -15,16 +15,18 @@ None of this needs special tools. It's plain Markdown, a folder layout, and two 
 | File | The question it answers | Updated when |
 | --- | --- | --- |
 | [`AGENTS.md`](AGENTS.md) | How do I work here? Where are things, what's the workflow, which commands? | The workflow or layout changes |
-| [`CLAUDE.md`](CLAUDE.md) | Nothing new: it points Claude Code at `AGENTS.md`, so one file serves every agent | Rarely |
-| [`MEMORY.md`](MEMORY.md) | What have agents learned that the code doesn't say? Decisions, traps, environment quirks, shared by Claude Code, Codex and any other agent | An agent learns something the next one will need |
+| [`CLAUDE.md`](CLAUDE.md) | Nothing new: it points Claude Code at `AGENTS.md` and `MEMORY.md`, so one set of files serves every agent | Rarely |
+| [`MEMORY.md`](MEMORY.md) | What has been learned across the project that the code doesn't say? Ends with an index of the feature memories | An agent learns something project-wide the next one will need |
 | [`SPEC.md`](SPEC.md) | What must the product do? User stories with acceptance criteria | What users can see or rely on changes |
-| `features/<name>/SPEC.md` | What does this feature own, what are its limits, how do I check it, and what depends on it? | The feature's behavior or boundaries change |
-| [`DEPENDENCIES.md`](DEPENDENCIES.md) | What connects to what? Generated from the imports | Automatically, by `npm run docs:dependencies` |
+| `features/<name>/SPEC.md` | What must this feature do, what does it own, how do I check it, and what depends on it? | The feature's behavior or boundaries change |
+| `features/<name>/MEMORY.md` | What was learned working on this feature: decisions, traps, dead ends | An agent learns something about the feature |
+| `features/<name>/CLAUDE.md` | Generated: makes Claude Code load the feature's spec and memory when it works there | Automatically |
+| [`DEPENDENCIES.md`](DEPENDENCIES.md) | What connects to what? Generated from the imports | Automatically, by `npm run docs:generate` |
 | [`CHANGELOG.md`](CHANGELOG.md) | What changed recently, and why? | A notable feature, fix or milestone lands |
 | [`TODOS.md`](TODOS.md) | What's left, and what's in progress? | A task is added, started or finished |
 | `README.md` | How do I install and run it? | Setup or usage changes |
 
-`MEMORY.md` lives in the repository, not in one agent's private memory folder, so switching from Claude Code to Codex (or to a teammate) loses nothing. See [shared memory](docs/principles.md#shared-memory-across-agents).
+Memory lives in the repository, not in one agent's private memory folder, so switching from Claude Code to Codex (or to a teammate) loses nothing. The spec says what must be true; the memory next to it says what was learned getting there. [docs/memory.md](docs/memory.md) explains the design and how each agent finds the right memory.
 
 ## The principles
 
@@ -57,8 +59,8 @@ npm test && npm run check
 Then make it yours:
 
 1. Rewrite the first paragraph of `AGENTS.md` and the introduction of `SPEC.md`.
-2. Delete the example features (`features/tasks`, `features/cli` and their tests) and add your own, each starting from [docs/feature-spec-template.md](docs/feature-spec-template.md).
-3. Run `npm run docs:dependencies`.
+2. Delete the example features (`features/tasks`, `features/cli` and their tests) and add your own, each starting from [the spec template](docs/feature-spec-template.md) and [the memory template](docs/feature-memory-template.md).
+3. Run `npm run docs:generate`.
 4. Start `CHANGELOG.md`, `TODOS.md` and `MEMORY.md` fresh.
 5. Replace this README with how to install and use your project.
 
@@ -71,7 +73,7 @@ Not using GitHub? Copy the files instead; nothing depends on the repository host
 - `DEPENDENCIES.md` and each feature's generated **Dependencies** section match the current imports.
 - `TODOS.md` has **Open** and **Completed** sections, with no finished items under Open and no unfinished ones under Completed.
 - `CHANGELOG.md` has one dated section per day (`## 2026-01-31`), newest first.
-- `MEMORY.md` entries are dated (`- **2026-01-31** · …`) and the file stays under 150 lines, since every session loads it.
+- Every feature has a `MEMORY.md` and a generated `CLAUDE.md`. Memory entries are dated (`- **2026-01-31** · …`), the root memory stays under 150 lines and each feature memory under 80, and the root memory's index of feature memories is current.
 - Every relative link in a Markdown file points at a file that exists.
 - The `todo` skill copies for Claude Code (`.claude/skills/`) and Codex (`.agents/skills/`) are identical.
 
@@ -79,7 +81,7 @@ The included GitHub Actions workflow runs `npm test` and `npm run check` on ever
 
 ## Other languages
 
-The layout and the documents work in any language. Only [scripts/dependencies.mjs](scripts/dependencies.mjs) reads code, and it understands JavaScript and TypeScript imports. It also handles TypeScript files imported by their compiled `.mjs` or `.js` names. For another language, change its `IMPORT` pattern and `resolveImport` function. The scripts need Node 22 or later, even when the project itself doesn't use Node.
+The layout and the documents work in any language. Only [scripts/generate-docs.mjs](scripts/generate-docs.mjs) reads code, and it understands JavaScript and TypeScript imports. It also handles TypeScript files imported by their compiled `.mjs` or `.js` names. For another language, change its `IMPORT` pattern and `resolveImport` function. The scripts need Node 22 or later, even when the project itself doesn't use Node.
 
 ## Already have a project?
 

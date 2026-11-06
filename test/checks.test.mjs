@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkChangelog, checkFeatureSpec, checkMemory, checkSkillCopies, checkTodos, markdownLinks, MEMORY_MAX_LINES } from '../scripts/check.mjs';
-import { staleDependencyDocs, writeDependencyDocs } from '../scripts/dependencies.mjs';
+import { FEATURE_CLAUDE_MD, staleDocs, writeDocs } from '../scripts/generate-docs.mjs';
 
 const spec = title => `# ${title}\n\nSummary.\n\n## Behavior\n\n- Works.\n\n## Boundaries\n\n- Small.\n\n## Verification\n\nRun tests.\n`;
 
@@ -35,6 +35,7 @@ test('MEMORY.md entries are dated and the file stays short', () => {
   assert.deepEqual(checkMemory('# Project memory\n\n## Gotchas\n\n- **2026-01-31** · Ports below 1024 need root.\n  Continuation lines are fine.\n'), []);
   assert.match(checkMemory('## Gotchas\n\n- Ports below 1024 need root.\n').join(), /entries start with/);
   assert.match(checkMemory('\n'.repeat(MEMORY_MAX_LINES)).join(), /limit 150/);
+  assert.match(checkMemory('- x\n', 'features/tasks/MEMORY.md', 80).join(), /^features\/tasks\/MEMORY\.md: entries/);
 });
 
 test('feature SPEC.md needs a title and non-empty standard sections', () => {
@@ -48,19 +49,24 @@ test('markdown links skip URLs, anchors and code', () => {
   assert.deepEqual(links, ['AGENTS.md', 'docs/x.md']);
 });
 
-test('dependency docs map imports between features and list who uses each feature', async () => {
+test('generated docs map imports between features and list who uses each feature', async () => {
   const root = await fixture({
+    'MEMORY.md': '# Project memory\n',
     'features/tasks/SPEC.md': spec('Tasks'),
+    'features/tasks/MEMORY.md': '# Tasks memory\n\n## Gotchas\n\n- **2026-01-02** · b\n- **2026-01-01** · a\n',
     'features/tasks/tasks.mts': 'export const x = 1;\n',
     'features/cli/SPEC.md': spec('Command line'),
+    'features/cli/MEMORY.md': '# Command line memory\n',
     'features/cli/main.mjs': "import { x } from '../tasks/tasks.mjs';\nimport './format.mjs';\n",
     'features/cli/format.mjs': 'export {};\n',
   });
   try {
-    assert.deepEqual((await staleDependencyDocs(root)).stale.sort(),
-      ['DEPENDENCIES.md', 'features/cli/SPEC.md', 'features/tasks/SPEC.md']);
-    await writeDependencyDocs(root);
-    assert.deepEqual(await staleDependencyDocs(root), { stale: [], problems: [] });
+    assert.deepEqual((await staleDocs(root)).stale.sort(), [
+      'DEPENDENCIES.md', 'MEMORY.md', 'features/cli/CLAUDE.md', 'features/cli/SPEC.md',
+      'features/tasks/CLAUDE.md', 'features/tasks/SPEC.md',
+    ]);
+    await writeDocs(root);
+    assert.deepEqual(await staleDocs(root), { stale: [], problems: [] });
 
     const map = await readFile(join(root, 'DEPENDENCIES.md'), 'utf8');
     assert.match(map, /cli --> tasks/);
@@ -68,16 +74,37 @@ test('dependency docs map imports between features and list who uses each featur
     assert.match(await readFile(join(root, 'features/tasks/SPEC.md'), 'utf8'), /\*\*Used by:\*\* \[cli\]\(\.\.\/cli\/SPEC\.md\)/);
 
     await writeFile(join(root, 'features/cli/main.mjs'), "import './format.mjs';\n");
-    assert.ok((await staleDependencyDocs(root)).stale.includes('DEPENDENCIES.md'));
+    assert.ok((await staleDocs(root)).stale.includes('DEPENDENCIES.md'));
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test('a feature folder without SPEC.md is reported', async () => {
+test('each feature gets a CLAUDE.md that loads its spec and memory, and the root memory indexes them', async () => {
+  const root = await fixture({
+    'MEMORY.md': '# Project memory\n\n## Gotchas\n\n- **2026-01-01** · root fact\n',
+    'features/tasks/SPEC.md': spec('Tasks'),
+    'features/tasks/MEMORY.md': '# Tasks memory\n\n- **2026-01-02** · newer\n- **2026-01-01** · older\n',
+  });
+  try {
+    await writeDocs(root);
+    assert.equal(await readFile(join(root, 'features/tasks/CLAUDE.md'), 'utf8'), FEATURE_CLAUDE_MD);
+    assert.match(FEATURE_CLAUDE_MD, /^@SPEC\.md$/m);
+    assert.match(FEATURE_CLAUDE_MD, /^@MEMORY\.md$/m);
+    const memory = await readFile(join(root, 'MEMORY.md'), 'utf8');
+    assert.match(memory, /root fact/);
+    assert.match(memory, /\| \[Tasks\]\(features\/tasks\/MEMORY\.md\) \| 2 \| 2026-01-02 \|/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a feature folder without SPEC.md or MEMORY.md is reported', async () => {
   const root = await fixture({ 'features/orphan/index.mjs': 'export {};\n' });
   try {
-    assert.match((await staleDependencyDocs(root)).problems.join(), /features\/orphan\/ has no SPEC\.md/);
+    const { problems } = await staleDocs(root);
+    assert.match(problems.join(), /features\/orphan\/ has no SPEC\.md/);
+    assert.match(problems.join(), /features\/orphan\/ has no MEMORY\.md/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

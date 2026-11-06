@@ -4,10 +4,11 @@
 import { access, readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { staleDependencyDocs } from './dependencies.mjs';
+import { staleDocs } from './generate-docs.mjs';
 
 export const REQUIRED_FILES = ['README.md', 'AGENTS.md', 'MEMORY.md', 'SPEC.md', 'CHANGELOG.md', 'TODOS.md', 'DEPENDENCIES.md'];
 export const MEMORY_MAX_LINES = 150;
+export const FEATURE_MEMORY_MAX_LINES = 80;
 export const FEATURE_SPEC_SECTIONS = ['Behavior', 'Boundaries', 'Verification'];
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
 
@@ -66,16 +67,16 @@ export function checkChangelog(markdown) {
   return problems;
 }
 
-/** MEMORY.md stays short enough to load every session, and each entry is dated so stale ones are easy to spot. */
-export function checkMemory(markdown) {
+/** A memory file stays short enough to load whole, and each entry is dated so stale ones are easy to spot. */
+export function checkMemory(markdown, path = 'MEMORY.md', limit = MEMORY_MAX_LINES) {
   const problems = [];
   const lines = markdown.split('\n').length;
-  if (lines > MEMORY_MAX_LINES) {
-    problems.push(`MEMORY.md has ${lines} lines (limit ${MEMORY_MAX_LINES}). Move standing rules into AGENTS.md or a SPEC.md and delete outdated entries.`);
+  if (lines > limit) {
+    problems.push(`${path} has ${lines} lines (limit ${limit}). Move standing rules into AGENTS.md or a SPEC.md and delete outdated entries.`);
   }
   for (const line of markdown.split('\n')) {
     if (/^- /.test(line) && !/^- \*\*\d{4}-\d{2}-\d{2}\*\* · \S/.test(line)) {
-      problems.push(`MEMORY.md: entries start with "- **YYYY-MM-DD** · ": ${line.trim()}`);
+      problems.push(`${path}: entries start with "- **YYYY-MM-DD** · ": ${line.trim()}`);
     }
   }
   return problems;
@@ -144,15 +145,20 @@ export async function runChecks(root) {
   const featureRoot = join(root, 'features');
   if (await exists(featureRoot)) {
     for (const entry of await readdir(featureRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
       const spec = join(featureRoot, entry.name, 'SPEC.md');
-      if (entry.isDirectory() && await exists(spec)) {
+      const memory = join(featureRoot, entry.name, 'MEMORY.md');
+      if (await exists(spec)) {
         problems.push(...checkFeatureSpec(`features/${entry.name}/SPEC.md`, await readFile(spec, 'utf8')));
+      }
+      if (await exists(memory)) {
+        problems.push(...checkMemory(await readFile(memory, 'utf8'), `features/${entry.name}/MEMORY.md`, FEATURE_MEMORY_MAX_LINES));
       }
     }
   }
-  const { stale, problems: dependencyProblems } = await staleDependencyDocs(root);
-  problems.push(...dependencyProblems);
-  if (stale.length) problems.push(`Out of date: ${stale.join(', ')}. Run npm run docs:dependencies.`);
+  const { stale, problems: generatorProblems } = await staleDocs(root);
+  problems.push(...generatorProblems);
+  if (stale.length) problems.push(`Out of date: ${stale.join(', ')}. Run npm run docs:generate.`);
   problems.push(...await checkLinks(root));
   problems.push(...await checkSkillCopies(root));
   return problems;

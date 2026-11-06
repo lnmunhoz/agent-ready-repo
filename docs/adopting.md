@@ -25,8 +25,8 @@ List the main things users do as user stories, with the behavior they rely on as
 
 ## 4. Move to feature folders, one feature at a time
 
-Pick the part of the code you change most often. Move it into `features/<name>/`, write its `SPEC.md` from the [template](feature-spec-template.md), and keep the rest of the project where it is. Repeat when you next touch another area. Mixed layouts are fine during the move; `AGENTS.md` should say which areas are already in `features/`.
+Pick the part of the code you change most often. Move it into `features/<name>/`, write its `SPEC.md` and `MEMORY.md` from the [spec template](feature-spec-template.md) and [memory template](feature-memory-template.md), move any lessons about it from the root `MEMORY.md` into its own memory, and keep the rest of the project where it is. Repeat when you next touch another area. Mixed layouts are fine during the move; `AGENTS.md` should say which areas are already in `features/`.
 
 ## 5. Add the checks
 
-Copy `scripts/check.mjs` and `scripts/dependencies.mjs`, add the `check` and `docs:dependencies` scripts to `package.json` (or call them from your own build tool), and run `npm run docs:dependencies`. Remove any check you aren't ready for yet from `runChecks` in `scripts/check.mjs`, and add it back once the documents are in shape. Finally, run the check in CI.
+Copy `scripts/check.mjs` and `scripts/generate-docs.mjs`, add the `check` and `docs:generate` scripts to `package.json` (or call them from your own build tool), and run `npm run docs:generate`. Remove any check you aren't ready for yet from `runChecks` in `scripts/check.mjs`, and add it back once the documents are in shape. Finally, run the check in CI.
