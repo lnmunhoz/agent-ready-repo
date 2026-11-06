@@ -9,7 +9,7 @@ import { FEATURE_CLAUDE_MD, mentions, nodeLabel, staleDocs, writeDocs } from '..
 test('long diagram labels wrap so GitHub does not clip them', () => {
   assert.equal(nodeLabel('Terminal (standard output)'), 'Terminal<br/>(standard<br/>output)');
   assert.equal(nodeLabel('Tasks'), 'Tasks');
-  assert.equal(nodeLabel('Say "hi" to the very long name'), 'Say &quot;hi&quot; to the<br/>very long name');
+  assert.equal(nodeLabel('Say "hi" to the very long name'), 'Say &quot;hi&quot; to<br/>the very long<br/>name');
 });
 
 test('setup notes and unreplaced placeholders are listed until they are filled in', async () => {

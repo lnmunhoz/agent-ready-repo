@@ -33,9 +33,10 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage']);
 
 const toPosix = path => path.split(sep).join('/');
 const escapeLabel = text => text.replaceAll('"', '&quot;');
-// GitHub's Mermaid clips node labels longer than about 16 characters, so long
-// labels are broken into lines of at most this many characters.
-export const LABEL_LINE_LENGTH = 16;
+// GitHub's Mermaid clips node labels wider than about 15 characters (its font is
+// proportional, so some 16-character lines already lose a letter), so long labels
+// are broken into lines of at most this many characters.
+export const LABEL_LINE_LENGTH = 14;
 export function nodeLabel(text) {
   const lines = [];
   for (const word of text.split(/\s+/).filter(Boolean)) {
