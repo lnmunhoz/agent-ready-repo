@@ -125,6 +125,18 @@ export function codeTokens(text = '') {
   return [...text.matchAll(/`([^`]+)`/g)].map(match => match[1].trim()).filter(Boolean);
 }
 
+/**
+ * Whether code mentions a Serves or Handles token as a whole: `/api/tasks` is not
+ * found inside `/api/tasks/archive`, and the event `save` not inside `autosave`.
+ * A token ending in `/` is a route prefix and matches whatever follows it.
+ */
+export function mentions(text, token) {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const before = /^[\w$]/u.test(token) ? '(?<![\\w$-])' : '';
+  const after = token.endsWith('/') ? '' : '(?![\\w$/-])';
+  return new RegExp(`${before}${escaped}${after}`, 'u').test(text);
+}
+
 /** The External line split into services: "Stripe API (payments); Postgres." → two entries. */
 export function externalServices(text = '') {
   const value = text.trim().replace(/\.$/, '');
@@ -202,7 +214,7 @@ export async function generateDocs(root) {
   const calls = new Map(names.map(name => [name, new Map()]));
   for (const name of names) {
     for (const [token, owner] of owners) {
-      if (owner === name || token.length < 3 || !sources.get(name).includes(token)) continue;
+      if (owner === name || token.length < 3 || !mentions(sources.get(name), token)) continue;
       if (!calls.get(name).has(owner)) calls.get(name).set(owner, []);
       calls.get(name).get(owner).push(token);
     }

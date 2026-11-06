@@ -38,7 +38,7 @@ When those are good, plain search is fast and always current. That's why this te
 
 ## 4. Specs describe behavior, code describes implementation
 
-**The rule:** the root `SPEC.md` holds user stories with acceptance criteria: what a user can see and rely on. Each feature's `SPEC.md` holds that feature's behavior, its boundaries (what it owns, what it leaves to others) and how to verify it. Neither repeats how the code works.
+**The rule:** the root `SPEC.md` holds user stories with acceptance criteria: what a user can see and rely on. Each feature's `SPEC.md` holds that feature's behavior, its boundaries (what it owns, what it leaves to others) and how to verify it. Neither repeats how the code works. Rules that other code or people rely on are behavior, not implementation: security and privacy limits (what is never stored, logged or sent), input limits, and data formats other code reads belong in the spec. Each feature spec links the root stories it implements, and `npm run check` fails when a link loses its heading, so the two levels stay connected.
 
 **Without it:** an agent asked to "fix" something can't tell whether the current behavior is a bug or a deliberate choice, so it guesses. Specs that describe implementation go stale with every refactor.
 
@@ -46,7 +46,7 @@ When those are good, plain search is fast and always current. That's why this te
 
 ## 5. Generate what can be generated, check the rest
 
-**The rule:** anything derivable from the code is generated. Here that's `DEPENDENCIES.md` and each feature's **Dependencies** section (what it uses, and what uses it). Everything else has a shape that `npm run check` verifies, and CI runs the check.
+**The rule:** anything derivable from the code is generated. Here that's `DEPENDENCIES.md` and each feature's **Dependencies** section (what it uses, and what uses it). Where generation depends on a hand-written list, a check compares the list with the code: `scripts/declared-interfaces.mjs` reads the routes and messages the code defines, and the check fails when a feature's Interfaces miss one. Everything else has a shape that `npm run check` verifies, and CI runs the check.
 
 **Without it:** "remember to update the docs" works for a week. A hand-drawn architecture diagram is wrong after the first refactor, and nobody notices until someone relies on it.
 

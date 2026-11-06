@@ -1,4 +1,4 @@
-// Entry point for `npm start`: builds a small example list and prints it.
+// Entry point, run as `node features/cli/main.mjs`: builds a small example list and prints it.
 
 import { pathToFileURL } from 'node:url';
 import { addTask, completeTask } from '../tasks/tasks.mjs';

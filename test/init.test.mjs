@@ -117,6 +117,18 @@ test('--existing keeps the project\'s files, merges what it safely can and marks
   });
 });
 
+test('--existing stops before changing anything when the project has its own check scripts', async () => {
+  await withFolder(async folder => {
+    await mkdir(join(folder, 'scripts'));
+    await writeFile(join(folder, 'scripts/check.mjs'), 'console.log("lint");\n');
+    await writeFile(join(folder, 'README.md'), '# Mine\n');
+    await assert.rejects(createProject({ folder, git: false, existing: true }), /already has scripts\/check\.mjs, so nothing was changed/);
+    assert.deepEqual((await readdir(folder)).sort(), ['README.md', 'scripts']);
+    assert.deepEqual(await readdir(join(folder, 'scripts')), ['check.mjs']);
+    assert.equal(await readFile(join(folder, 'README.md'), 'utf8'), '# Mine\n');
+  });
+});
+
 test('a folder that cannot be written is reported, and everything else is still created', async () => {
   await withFolder(async folder => {
     await mkdir(join(folder, '.agents'));
@@ -161,6 +173,7 @@ test('the example features work in a new project, and their generated files are 
   await withFolder(async folder => {
     const project = await createProject({ folder, name: 'Example', description: 'The template example.', git: false });
     await finishSetup(folder, project.notes);
+    await cp(join(repo, 'example/SPEC.md'), join(folder, 'SPEC.md'));
     await cp(join(repo, 'example/features'), join(folder, 'features'), { recursive: true });
     await cp(join(repo, 'example/test'), join(folder, 'test'), { recursive: true });
 
@@ -176,15 +189,18 @@ test('the example features work in a new project, and their generated files are 
   });
 });
 
-test('links in the explainer documents resolve', async () => {
-  const { markdownLinks } = await import('../template/scripts/check.mjs');
-  const files = ['README.md', 'AGENTS.md', ...(await readdir(join(repo, 'docs'))).map(name => `docs/${name}`)];
+test('links in the explainer documents resolve, including links to headings', async () => {
+  const { headingAnchors, markdownLinkTargets } = await import('../template/scripts/check.mjs');
+  const files = ['README.md', 'AGENTS.md', 'CHANGELOG.md', 'example/SPEC.md', ...(await readdir(join(repo, 'docs'))).map(name => `docs/${name}`)];
   for (const file of files) {
-    for (const target of markdownLinks(await readFile(join(repo, file), 'utf8'))) {
-      await assert.doesNotReject(readFile(join(repo, dirname(file), target)).catch(async error => {
-        if (error.code === 'EISDIR') return;
-        throw new Error(`${file}: broken link to ${target}`);
-      }));
+    for (const { path, anchor } of markdownLinkTargets(await readFile(join(repo, file), 'utf8'))) {
+      const target = path ? join(repo, dirname(file), path) : join(repo, file);
+      let text;
+      try { text = await readFile(target, 'utf8'); } catch (error) {
+        if (error.code === 'EISDIR') continue;
+        throw new Error(`${file}: broken link to ${path}`);
+      }
+      if (anchor && target.endsWith('.md')) assert.ok(headingAnchors(text).has(anchor.toLowerCase()), `${file}: no heading for ${path}#${anchor}`);
     }
   }
 });

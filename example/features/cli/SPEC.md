@@ -2,9 +2,11 @@
 
 Prints a task list in the terminal. It is the only part of the example that produces output, and it uses the Tasks feature for every rule. This is an example feature; replace it with your own.
 
+User stories: [See what's left](../../SPEC.md#see-whats-left).
+
 ## Behavior
 
-- `npm start` prints an example list: open tasks first, then completed ones.
+- `node features/cli/main.mjs` prints an example list: open tasks first, then completed ones.
 - Open tasks print as `[ ] <id>. <title>` and completed ones as `[x] <id>. <title>`, in list order.
 - When nothing is open, the Open section says "Nothing left to do." The Completed section is left out when it would be empty.
 
@@ -24,7 +26,7 @@ Prints a task list in the terminal. It is the only part of the example that prod
 
 ## Verification
 
-Run `npm test`, then `npm start` and read the output.
+Run `npm test`, then `node features/cli/main.mjs` and read the output.
 
 <!-- dependencies:start -->
 ## Dependencies
