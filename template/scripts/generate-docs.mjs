@@ -226,7 +226,8 @@ export async function generateDocs(root) {
   const externalOf = name => externalServices(interfaces.get(name).External);
   const title = name => escapeLabel(featureTitle(name, specs.get(name)));
   const nodeTitle = name => nodeLabel(featureTitle(name, specs.get(name)));
-  const callLabel = (from, to) => `"${escapeLabel(callTokens(from, to).join(', '))}"`;
+  // One call per line: GitHub clips long edge labels as well as node labels.
+  const callLabel = (from, to) => `"${callTokens(from, to).map(escapeLabel).join('<br/>')}"`;
   const code = tokens => tokens.map(token => `\`${token}\``).join(', ');
 
   const graph = names.length

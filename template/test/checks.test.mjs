@@ -227,6 +227,7 @@ test('a route listed by one feature is not drawn as called by code that only nam
   try {
     await writeDocs(root);
     const web = await readFile(join(root, 'features/web/SPEC.md'), 'utf8');
+    assert.ok(web.includes('  f_web -.->|"/api/tasks/archive"| f_archive'));
     assert.match(web, /- \*\*Calls:\*\* \[archive\]\(\.\.\/archive\/SPEC\.md\) \(`\/api\/tasks\/archive`\)\n/);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -290,5 +291,22 @@ test('a feature spec links the root user stories it implements', () => {
   assert.match(checkStoryLinks('x', spec('Tasks')).join(), /^x links no user story/);
   const onlyGenerated = `${spec('Tasks')}<!-- dependencies:start -->\n[root](../../SPEC.md#x)\n<!-- dependencies:end -->\n`;
   assert.equal(checkStoryLinks('x', onlyGenerated).length, 1);
+});
+
+test('an edge calling several routes puts each on its own line, so GitHub does not clip the label', async () => {
+  const root = await fixture({
+    'MEMORY.md': '# m\n',
+    'features/api/SPEC.md': spec('API', { serves: '`/api/tasks`, `/api/users`.' }),
+    'features/api/MEMORY.md': '# m\n',
+    'features/web/SPEC.md': spec('Web'),
+    'features/web/MEMORY.md': '# m\n',
+    'features/web/page.mjs': "fetch('/api/tasks'); fetch('/api/users');\n",
+  });
+  try {
+    await writeDocs(root);
+    assert.ok((await readFile(join(root, 'features/web/SPEC.md'), 'utf8')).includes('  f_web -.->|"/api/tasks<br/>/api/users"| f_api'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
