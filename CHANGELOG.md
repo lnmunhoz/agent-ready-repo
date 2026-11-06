@@ -4,4 +4,6 @@ Notable changes to the product, newest first. Each date gets one section, and ea
 
 ## 2026-11-06
 
+- New `MEMORY.md`: project memory kept in the repository and shared by every agent, so lessons Claude Code learns are there for Codex too (and the other way round). `npm run check` keeps its entries dated and the file under 150 lines.
+
 - First version of the template: `AGENTS.md`, the root and per-feature `SPEC.md` files, this changelog, the `TODOS.md` task list, a generated `DEPENDENCIES.md`, and `npm run check` to keep them current. Includes a small example task-list app to show how the pieces fit together.

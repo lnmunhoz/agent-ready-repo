@@ -68,16 +68,20 @@ When those are good, plain search is fast and always current. That's why this te
 
 **With it:** any session, human or agent, can pick up any task from the files alone.
 
-## What about agent memory?
+## Shared memory across agents
 
-Claude Code keeps an automatic memory: a `MEMORY.md` index plus short notes, stored in your home folder (`~/.claude/projects/<project>/memory/`), not in the repository. Other agents have their own versions. It's useful, but it isn't a substitute for these documents:
+Agents learn things while they work: that a test is slow unless a server runs first, that a design was chosen for a reason, that an import style confuses some tools. Claude Code saves lessons like these in its automatic memory, but that memory lives in your home folder (`~/.claude/projects/<project>/memory/`), not in the repository. Codex keeps its own, separately. Neither can read the other's, and teammates, CI, and you on another computer can't read either. Switch from Claude Code to Codex mid-project and every lesson stays behind.
 
-- **It's private.** Only one agent, for one person, on one machine, sees it. Teammates, CI, other agents, and you on another computer don't.
-- **Nothing checks it.** A memory can go stale without anything failing, and the agent will still trust it.
+So the project keeps its memory in the repository, in [MEMORY.md](../MEMORY.md):
 
-So the rule is: **facts about the project go in the repository; facts about you go in memory.** How to build or test the project, a convention, a design decision, a trap in the code: these belong in `AGENTS.md`, a `SPEC.md` or `docs/`. Your preferences, how you like to work, and pointers to your own accounts and tools belong in memory. When a memory turns out to be true for the project, move it into the repository and delete the memory.
+- **Every agent reads it.** Claude Code loads it through `CLAUDE.md`; `AGENTS.md` tells every other agent to read it at the start of a session.
+- **It holds what nothing else does:** decisions and their reasons, traps, environment quirks. Not what the code, the specs or Git already say.
+- **Entries are dated,** so a stale one is easy to spot and question.
+- **It's kept short.** Every session loads it, so `npm run check` fails above 150 lines. When an entry becomes a standing rule, it moves into `AGENTS.md` or a `SPEC.md`; when it turns out wrong, it's deleted.
 
-That's why the template has no `MEMORY.md` of its own. Committed to the repository, it would only duplicate `AGENTS.md`.
+Private agent memory still has a job: **facts about you go there; facts about the project go in the repository.** How you like to work, your preferences, and pointers to your own accounts and tools stay private. `AGENTS.md` tells agents to save project lessons in `MEMORY.md` instead of their private memory.
+
+For work in progress, the handoff lives in `TODOS.md`: an agent that stops partway says in the task's item where it stopped and what comes next, so a different agent can continue.
 
 ## The task list and the changelog
 

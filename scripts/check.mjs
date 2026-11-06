@@ -6,7 +6,8 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { staleDependencyDocs } from './dependencies.mjs';
 
-export const REQUIRED_FILES = ['README.md', 'AGENTS.md', 'SPEC.md', 'CHANGELOG.md', 'TODOS.md', 'DEPENDENCIES.md'];
+export const REQUIRED_FILES = ['README.md', 'AGENTS.md', 'MEMORY.md', 'SPEC.md', 'CHANGELOG.md', 'TODOS.md', 'DEPENDENCIES.md'];
+export const MEMORY_MAX_LINES = 150;
 export const FEATURE_SPEC_SECTIONS = ['Behavior', 'Boundaries', 'Verification'];
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
 
@@ -61,6 +62,21 @@ export function checkChangelog(markdown) {
   for (let i = 1; i < valid.length; i += 1) {
     if (valid[i] === valid[i - 1]) problems.push(`CHANGELOG.md: ${valid[i]} appears twice; keep one section per date.`);
     else if (valid[i] > valid[i - 1]) problems.push(`CHANGELOG.md: ${valid[i]} is below ${valid[i - 1]}; put the newest date first.`);
+  }
+  return problems;
+}
+
+/** MEMORY.md stays short enough to load every session, and each entry is dated so stale ones are easy to spot. */
+export function checkMemory(markdown) {
+  const problems = [];
+  const lines = markdown.split('\n').length;
+  if (lines > MEMORY_MAX_LINES) {
+    problems.push(`MEMORY.md has ${lines} lines (limit ${MEMORY_MAX_LINES}). Move standing rules into AGENTS.md or a SPEC.md and delete outdated entries.`);
+  }
+  for (const line of markdown.split('\n')) {
+    if (/^- /.test(line) && !/^- \*\*\d{4}-\d{2}-\d{2}\*\* · \S/.test(line)) {
+      problems.push(`MEMORY.md: entries start with "- **YYYY-MM-DD** · ": ${line.trim()}`);
+    }
   }
   return problems;
 }
@@ -124,6 +140,7 @@ export async function runChecks(root) {
   for (const file of REQUIRED_FILES) if (!await exists(join(root, file))) problems.push(`Missing ${file}.`);
   if (await exists(join(root, 'TODOS.md'))) problems.push(...checkTodos(await readFile(join(root, 'TODOS.md'), 'utf8')));
   if (await exists(join(root, 'CHANGELOG.md'))) problems.push(...checkChangelog(await readFile(join(root, 'CHANGELOG.md'), 'utf8')));
+  if (await exists(join(root, 'MEMORY.md'))) problems.push(...checkMemory(await readFile(join(root, 'MEMORY.md'), 'utf8')));
   const featureRoot = join(root, 'features');
   if (await exists(featureRoot)) {
     for (const entry of await readdir(featureRoot, { withFileTypes: true })) {

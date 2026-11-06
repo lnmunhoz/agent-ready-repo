@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkChangelog, checkFeatureSpec, checkSkillCopies, checkTodos, markdownLinks } from '../scripts/check.mjs';
+import { checkChangelog, checkFeatureSpec, checkMemory, checkSkillCopies, checkTodos, markdownLinks, MEMORY_MAX_LINES } from '../scripts/check.mjs';
 import { staleDependencyDocs, writeDependencyDocs } from '../scripts/dependencies.mjs';
 
 const spec = title => `# ${title}\n\nSummary.\n\n## Behavior\n\n- Works.\n\n## Boundaries\n\n- Small.\n\n## Verification\n\nRun tests.\n`;
@@ -29,6 +29,12 @@ test('CHANGELOG.md: dated sections, newest first, each date once', () => {
   assert.match(checkChangelog('## 2026-01-01\n\n## 2026-02-01\n').join(), /newest date first/);
   assert.match(checkChangelog('## 2026-01-01\n\n## 2026-01-01\n').join(), /appears twice/);
   assert.match(checkChangelog('## Unreleased\n').join(), /should be a date/);
+});
+
+test('MEMORY.md entries are dated and the file stays short', () => {
+  assert.deepEqual(checkMemory('# Project memory\n\n## Gotchas\n\n- **2026-01-31** · Ports below 1024 need root.\n  Continuation lines are fine.\n'), []);
+  assert.match(checkMemory('## Gotchas\n\n- Ports below 1024 need root.\n').join(), /entries start with/);
+  assert.match(checkMemory('\n'.repeat(MEMORY_MAX_LINES)).join(), /limit 150/);
 });
 
 test('feature SPEC.md needs a title and non-empty standard sections', () => {

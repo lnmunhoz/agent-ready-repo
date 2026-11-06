@@ -5,6 +5,7 @@ This repository is a template for projects that coding agents can find their way
 ## Where things are
 
 - `features/<name>/`: one folder per feature, holding its code and its `SPEC.md`. Start here. Folder and file names say what they contain, so searching for a name usually lands in the right place.
+- `MEMORY.md`: what agents have learned that the code and specs don't say, such as decisions, traps and environment quirks. Shared by every agent.
 - `SPEC.md`: what the product must do, as user stories with acceptance criteria.
 - `DEPENDENCIES.md`: which features import which, and who uses each one. It is generated, so never edit it by hand.
 - `CHANGELOG.md`: notable changes, newest first, grouped by date.
@@ -15,7 +16,7 @@ This repository is a template for projects that coding agents can find their way
 
 ## Workflow
 
-1. **Orient.** Read `README.md`, the root `SPEC.md` and the `SPEC.md` of each feature you will touch. Check `git status` so you don't overwrite someone's work in progress. Before changing a feature, look at its **Used by** list to see what else depends on it.
+1. **Orient.** Read `README.md`, `MEMORY.md`, `TODOS.md`, the root `SPEC.md` and the `SPEC.md` of each feature you will touch. Check `git status` so you don't overwrite someone's work in progress. Before changing a feature, look at its **Used by** list to see what else depends on it.
 2. **Plan.** For work across several files, write a short plan first.
 3. **Test first.** Add or adjust a test for any behavior that can be checked without a person looking at it, then implement.
 4. **Implement inside the feature.** Keep a feature's code in its folder. To use another feature, import from it; don't copy its code.
@@ -25,6 +26,7 @@ This repository is a template for projects that coding agents can find their way
    - the root `SPEC.md` when what users can see or rely on changes;
    - `CHANGELOG.md` for a notable feature, fix or milestone, written for the people who use the product;
    - `README.md` when installation or usage changes;
+   - `MEMORY.md` when you learned something the next agent will need (see [Project memory](#project-memory));
    - `npm run docs:dependencies` when imports between features change.
 7. **Review before committing.** Read the diff and the staged files. Never commit secrets, build output, logs or `node_modules/`.
 8. **Ask before publishing.** After a big change (a new feature, a rework across several files, a merge) is finished and verified, ask whether to commit and push, saying which files or commits would go out and to which branch. Push only after a yes.
@@ -41,7 +43,19 @@ This repository is a template for projects that coding agents can find their way
 - Add new items as unchecked boxes under **Open**. When one is done, move it to **Completed** as a checked box rather than deleting it.
 - Keep wording and status current, and don't add duplicates.
 - When a new request arrives while other work is in progress, treat it as part of the work unless the user replaces or cancels the earlier request. Record each distinct request in `TODOS.md` right away, note which one is in progress, and before ending your turn check that nothing under **Open** was forgotten.
+- If you stop before a task is finished, say in its `TODOS.md` item where you stopped and what's next, so another agent can pick it up.
 - The `todo` skill handles `/todo`. It exists twice, in `.claude/skills/` for Claude Code and `.agents/skills/` for Codex; edit both, and `npm run check` confirms they match.
+
+## Project memory
+
+`MEMORY.md` is memory shared by every agent working here. Claude Code, Codex and any other agent read the same file, so what one learns, the next one knows.
+
+- Read it when you start (step 1 of the workflow).
+- Add an entry when you learn something a later session will need and can't get from the code, the specs or Git: a decision and its reason, a trap, a quirk of the environment. Put it under **Decisions**, **Gotchas** or **Environment** as `- **YYYY-MM-DD** · The fact. Why: the reason.`
+- Save facts about the project here, not in your agent's private memory (such as Claude Code's own memory folder), where other agents can't see them. Private memory is only for the user's personal preferences.
+- Fix or delete entries that turn out to be wrong. When an entry becomes a standing rule, move it into this file or a `SPEC.md` and delete it from memory.
+- Keep it under 150 lines, since every session loads it; `npm run check` enforces this.
+- Never store secrets, credentials or personal data in it.
 
 ## Writing the documents
 

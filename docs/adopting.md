@@ -13,9 +13,11 @@ Copy [AGENTS.md](../AGENTS.md) and rewrite it for your project:
 
 Add a `CLAUDE.md` containing `@AGENTS.md` so Claude Code reads the same file. This step alone changes how well agents work in the project.
 
-## 2. Start `TODOS.md` and `CHANGELOG.md`
+## 2. Start `TODOS.md`, `CHANGELOG.md` and `MEMORY.md`
 
-Copy both files and empty them. Begin the changelog from today; there's no need to rebuild history that Git already has. Copy the `todo` skill into `.claude/skills/` and `.agents/skills/`.
+Copy the three files and empty them. Begin the changelog from today; there's no need to rebuild history that Git already has. Copy the `todo` skill into `.claude/skills/` and `.agents/skills/`.
+
+If an agent has been building up private memory about the project (Claude Code keeps it in `~/.claude/projects/<project>/memory/`), go through it: move what's true about the project into `MEMORY.md`, `AGENTS.md` or a spec, and leave only personal preferences behind.
 
 ## 3. Write the root `SPEC.md` from what exists
 
