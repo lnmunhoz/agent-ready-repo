@@ -20,6 +20,9 @@ const RENAMES = new Map([['gitignore', '.gitignore']]);
 // Only these files have {{placeholders}}. Others, such as the checker's tests, may
 // mention placeholders on purpose and must be copied unchanged.
 const PLACEHOLDER_FILES = new Set(['README.md', 'AGENTS.md', 'SPEC.md', 'CHANGELOG.md', 'package.json']);
+// The project's checks run these exact files, so a project's own file with one of
+// these names can't be kept alongside them.
+export const TOOLING = ['scripts/check.mjs', 'scripts/generate-docs.mjs', 'scripts/declared-interfaces.mjs'];
 const USAGE = `Create a project that coding agents can find their way around.
 
 Usage:
@@ -153,6 +156,14 @@ export async function createProject({ folder = '.', name, description, date = lo
       'To add agent-ready-repo to an existing project, run the same command with --existing.',
       'It keeps your files, adds the missing package.json scripts and .gitignore lines, and marks',
       'documents to merge by hand with setup notes that npm run check lists.',
+    ].join('\n'));
+  }
+  const tooling = conflicts.filter(path => TOOLING.includes(path));
+  if (existing && tooling.length) {
+    throw new Error([
+      `This project already has ${tooling.join(' and ')}, so nothing was changed.`,
+      'agent-ready-repo needs its own files at those paths for npm run check and npm run docs:generate.',
+      'Rename yours (and update whatever runs them), then run the command again.',
     ].join('\n'));
   }
   if (existing && await exists(join(root, MERGE_DIR))) {

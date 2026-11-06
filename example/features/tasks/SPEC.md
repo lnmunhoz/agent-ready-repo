@@ -2,6 +2,8 @@
 
 Keeps a list of tasks and the rules for changing it: adding, completing and splitting the list into open and completed. This is an example feature; replace it with your own.
 
+User stories: [Keep a task list](../../SPEC.md#keep-a-task-list).
+
 ## Behavior
 
 - `addTask` trims the title and appends the task with the next free id. A blank title is rejected with an error.

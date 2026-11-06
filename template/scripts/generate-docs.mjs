@@ -33,9 +33,10 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage']);
 
 const toPosix = path => path.split(sep).join('/');
 const escapeLabel = text => text.replaceAll('"', '&quot;');
-// GitHub's Mermaid clips node labels longer than about 16 characters, so long
-// labels are broken into lines of at most this many characters.
-export const LABEL_LINE_LENGTH = 16;
+// GitHub's Mermaid clips node labels wider than about 15 characters (its font is
+// proportional, so some 16-character lines already lose a letter), so long labels
+// are broken into lines of at most this many characters.
+export const LABEL_LINE_LENGTH = 14;
 export function nodeLabel(text) {
   const lines = [];
   for (const word of text.split(/\s+/).filter(Boolean)) {
@@ -125,6 +126,18 @@ export function codeTokens(text = '') {
   return [...text.matchAll(/`([^`]+)`/g)].map(match => match[1].trim()).filter(Boolean);
 }
 
+/**
+ * Whether code mentions a Serves or Handles token as a whole: `/api/tasks` is not
+ * found inside `/api/tasks/archive`, and the event `save` not inside `autosave`.
+ * A token ending in `/` is a route prefix and matches whatever follows it.
+ */
+export function mentions(text, token) {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const before = /^[\w$]/u.test(token) ? '(?<![\\w$-])' : '';
+  const after = token.endsWith('/') ? '' : '(?![\\w$/-])';
+  return new RegExp(`${before}${escaped}${after}`, 'u').test(text);
+}
+
 /** The External line split into services: "Stripe API (payments); Postgres." → two entries. */
 export function externalServices(text = '') {
   const value = text.trim().replace(/\.$/, '');
@@ -202,7 +215,7 @@ export async function generateDocs(root) {
   const calls = new Map(names.map(name => [name, new Map()]));
   for (const name of names) {
     for (const [token, owner] of owners) {
-      if (owner === name || token.length < 3 || !sources.get(name).includes(token)) continue;
+      if (owner === name || token.length < 3 || !mentions(sources.get(name), token)) continue;
       if (!calls.get(name).has(owner)) calls.get(name).set(owner, []);
       calls.get(name).get(owner).push(token);
     }
@@ -214,7 +227,8 @@ export async function generateDocs(root) {
   const externalOf = name => externalServices(interfaces.get(name).External);
   const title = name => escapeLabel(featureTitle(name, specs.get(name)));
   const nodeTitle = name => nodeLabel(featureTitle(name, specs.get(name)));
-  const callLabel = (from, to) => `"${escapeLabel(callTokens(from, to).join(', '))}"`;
+  // One call per line: GitHub clips long edge labels as well as node labels.
+  const callLabel = (from, to) => `"${callTokens(from, to).map(escapeLabel).join('<br/>')}"`;
   const code = tokens => tokens.map(token => `\`${token}\``).join(', ');
 
   const graph = names.length

@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkChangelog, checkFeatureSpec, checkMemory, checkSetup, checkSkillCopies, checkTodos, markdownLinks, MEMORY_MAX_LINES, setupNotes } from '../scripts/check.mjs';
-import { FEATURE_CLAUDE_MD, nodeLabel, staleDocs, writeDocs } from '../scripts/generate-docs.mjs';
+import { checkChangelog, checkDeclaredInterfaces, checkFeatureSpec, checkLinks, checkMemory, checkSetup, checkSkillCopies, checkStoryLinks, checkTodos, headingAnchors, interfaceCompleteness, markdownLinks, markdownLinkTargets, MEMORY_MAX_LINES, setupNotes } from '../scripts/check.mjs';
+import { FEATURE_CLAUDE_MD, mentions, nodeLabel, staleDocs, writeDocs } from '../scripts/generate-docs.mjs';
 
 test('long diagram labels wrap so GitHub does not clip them', () => {
   assert.equal(nodeLabel('Terminal (standard output)'), 'Terminal<br/>(standard<br/>output)');
   assert.equal(nodeLabel('Tasks'), 'Tasks');
-  assert.equal(nodeLabel('Say "hi" to the very long name'), 'Say &quot;hi&quot; to the<br/>very long name');
+  assert.equal(nodeLabel('Say "hi" to the very long name'), 'Say &quot;hi&quot; to<br/>the very long<br/>name');
 });
 
 test('setup notes and unreplaced placeholders are listed until they are filled in', async () => {
@@ -202,3 +202,111 @@ test('a feature used by many others shows them as one node, and a route has one 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('runtime calls match whole routes and names, not parts of longer ones', () => {
+  assert.ok(mentions("fetch('/api/tasks?done=1')", '/api/tasks'));
+  assert.ok(!mentions("fetch('/api/tasks/archive')", '/api/tasks'));
+  assert.ok(mentions("fetch('/api/files/report.pdf')", '/api/files/'));
+  assert.ok(mentions("emit('save')", 'save'));
+  assert.ok(!mentions('autosave();', 'save'));
+  assert.ok(!mentions("on('task-completed-all')", 'task-completed'));
+  assert.ok(mentions('send({ type: START_FOCUS })', 'START_FOCUS'));
+});
+
+test('a route listed by one feature is not drawn as called by code that only names a longer route', async () => {
+  const root = await fixture({
+    'MEMORY.md': '# m\n',
+    'features/api/SPEC.md': spec('API', { serves: '`/api/tasks`.' }),
+    'features/api/MEMORY.md': '# m\n',
+    'features/archive/SPEC.md': spec('Archive', { serves: '`/api/tasks/archive`.' }),
+    'features/archive/MEMORY.md': '# m\n',
+    'features/web/SPEC.md': spec('Web'),
+    'features/web/MEMORY.md': '# m\n',
+    'features/web/page.mjs': "fetch('/api/tasks/archive');\n",
+  });
+  try {
+    await writeDocs(root);
+    const web = await readFile(join(root, 'features/web/SPEC.md'), 'utf8');
+    assert.ok(web.includes('  f_web -.->|"/api/tasks/archive"| f_archive'));
+    assert.match(web, /- \*\*Calls:\*\* \[archive\]\(\.\.\/archive\/SPEC\.md\) \(`\/api\/tasks\/archive`\)\n/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('declared routes and messages must each be listed by a feature, and listed ones must exist', () => {
+  const specs = new Map([['api', spec('API', { serves: '`/api/tasks`, `/api/old`.', handles: '`anything`.' })]]);
+  assert.deepEqual(interfaceCompleteness(null, specs), []);
+  assert.deepEqual(interfaceCompleteness({ serves: ['/api/tasks', '/api/old'] }, specs), []);
+  assert.deepEqual(interfaceCompleteness({ serves: ['/api/tasks', '/api/users'] }, specs), [
+    '`/api/users` is defined in the code but no feature lists it under Serves.',
+    'features/api/SPEC.md lists `/api/old` under Serves, but scripts/declared-interfaces.mjs doesn\'t define it.',
+  ]);
+  assert.deepEqual(interfaceCompleteness({ handles: 'save' }, specs), ['scripts/declared-interfaces.mjs: "handles" must be a list of strings.']);
+});
+
+test('the declared-interfaces hook is read from the project', async () => {
+  const root = await fixture({
+    'scripts/declared-interfaces.mjs': "export async function declaredInterfaces() { return { serves: ['/api/tasks', '/api/users'] }; }\n",
+  });
+  try {
+    const specs = new Map([['api', spec('API', { serves: '`/api/tasks`.' })]]);
+    assert.deepEqual(await checkDeclaredInterfaces(root, specs), ['`/api/users` is defined in the code but no feature lists it under Serves.']);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+  const broken = await fixture({ 'scripts/declared-interfaces.mjs': 'export const other = 1;\n' });
+  try {
+    assert.deepEqual(await checkDeclaredInterfaces(broken, new Map()), ['scripts/declared-interfaces.mjs must export a declaredInterfaces(root) function.']);
+  } finally {
+    await rm(broken, { recursive: true, force: true });
+  }
+});
+
+test('heading anchors follow GitHub: lowercase, no punctuation, dashes, numbered repeats', () => {
+  const anchors = headingAnchors("# Tasks\n## See what's left\n### `npm run check` & you\n## Tasks\n```\n# Not a heading\n```\n## [Linked](x.md) title\n");
+  assert.deepEqual([...anchors], ['tasks', 'see-whats-left', 'npm-run-check--you', 'tasks-1', 'linked-title']);
+  assert.deepEqual(markdownLinkTargets('[a](SPEC.md#tasks) [b](#top) [c](https://x.dev/#y)'), [{ path: 'SPEC.md', anchor: 'tasks' }, { path: '', anchor: 'top' }]);
+});
+
+test('links must point at existing files and, for Markdown, existing headings', async () => {
+  const root = await fixture({
+    'SPEC.md': "# Product\n\n### See what's left\n",
+    'docs/a.md': "# Top\n\n[ok](../SPEC.md#see-whats-left) [here](#top) [gone](../SPEC.md#renamed) [nowhere](missing.md) [self](#nope)\n",
+  });
+  try {
+    assert.deepEqual(await checkLinks(root), [
+      'docs/a.md: link to ../SPEC.md#renamed has no matching heading',
+      'docs/a.md: broken link to missing.md',
+      'docs/a.md: link to #nope has no matching heading',
+    ]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a feature spec links the root user stories it implements', () => {
+  const linked = spec('Tasks').replace('Summary.\n', 'Summary.\n\nUser stories: [Keep a task list](../../SPEC.md#keep-a-task-list).\n');
+  assert.deepEqual(checkStoryLinks('x', linked), []);
+  assert.match(checkStoryLinks('x', spec('Tasks')).join(), /^x links no user story/);
+  const onlyGenerated = `${spec('Tasks')}<!-- dependencies:start -->\n[root](../../SPEC.md#x)\n<!-- dependencies:end -->\n`;
+  assert.equal(checkStoryLinks('x', onlyGenerated).length, 1);
+});
+
+test('an edge calling several routes puts each on its own line, so GitHub does not clip the label', async () => {
+  const root = await fixture({
+    'MEMORY.md': '# m\n',
+    'features/api/SPEC.md': spec('API', { serves: '`/api/tasks`, `/api/users`.' }),
+    'features/api/MEMORY.md': '# m\n',
+    'features/web/SPEC.md': spec('Web'),
+    'features/web/MEMORY.md': '# m\n',
+    'features/web/page.mjs': "fetch('/api/tasks'); fetch('/api/users');\n",
+  });
+  try {
+    await writeDocs(root);
+    assert.ok((await readFile(join(root, 'features/web/SPEC.md'), 'utf8')).includes('  f_web -.->|"/api/tasks<br/>/api/users"| f_api'));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+

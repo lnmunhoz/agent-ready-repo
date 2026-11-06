@@ -1,6 +1,6 @@
 {
   "name": "agent-ready-repo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Create projects that coding agents can find their way around, with documents that stay current.",
   "type": "module",

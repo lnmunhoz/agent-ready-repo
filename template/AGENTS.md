@@ -15,7 +15,7 @@ This project follows the [agent-ready-repo](https://github.com/lnmunhoz/agent-re
 - `CHANGELOG.md`: notable changes, newest first, grouped by date.
 - `TODOS.md`: the task list, split into Open and Completed.
 - `docs/`: longer explanations, plus the spec and memory templates for new features.
-- `scripts/`: project tooling, including `npm run check`.
+- `scripts/`: project tooling, including `npm run check`. `scripts/declared-interfaces.mjs` lists the routes and messages the code defines, once there are any, so the check can tell when a feature's Interfaces miss one.
 - `test/`: tests, named after the feature or script they cover.
 
 ## Workflow
@@ -26,7 +26,7 @@ This project follows the [agent-ready-repo](https://github.com/lnmunhoz/agent-re
 4. **Implement inside the feature.** Keep a feature's code in its folder. To use another feature, import from it; don't copy its code.
 5. **Verify.** Run `npm test` and `npm run check`. When a change affects something tests can't see (a screen, a sound, an external service), check it in the running app if you can. Report exactly what was and wasn't verified.
 6. **Update the documents in the same change:**
-   - the feature's `SPEC.md` when its behavior, interfaces or boundaries change. List every route, message or event it answers under **Serves** or **Handles**, and every outside service under **External**: the generated diagrams are built from these lines;
+   - the feature's `SPEC.md` when its behavior, interfaces or boundaries change. List every route, message or event it answers under **Serves** or **Handles**, and every outside service under **External**: the generated diagrams are built from these lines. When the code gains a new kind of route or message, teach `scripts/declared-interfaces.mjs` to find it;
    - the root `SPEC.md` when what users can see or rely on changes;
    - `CHANGELOG.md` for a notable feature, fix or milestone, written for the people who use the product;
    - `README.md` when installation or usage changes;
@@ -37,7 +37,7 @@ This project follows the [agent-ready-repo](https://github.com/lnmunhoz/agent-re
 
 ## Adding a feature
 
-1. Create `features/<name>/`. Copy `docs/feature-spec-template.md` into it as `SPEC.md` and fill in every section, including all five Interfaces lines (`None.` when empty), and copy `docs/feature-memory-template.md` as `MEMORY.md` with its example entries removed.
+1. Create `features/<name>/`. Copy `docs/feature-spec-template.md` into it as `SPEC.md` and fill in every section, including the `User stories:` line linking the root `SPEC.md` stories it implements and all five Interfaces lines (`None.` when empty), and copy `docs/feature-memory-template.md` as `MEMORY.md` with its example entries removed.
 2. Name files after what they do (`temporary-access.mjs`, not `utils.mjs`).
 3. Add tests under `test/`, then run `npm run docs:generate` and `npm run check`.
 
@@ -70,7 +70,7 @@ Rules for both:
 
 - Write for a reader with no memory of earlier sessions: say what is true now and why, not what you just did.
 - Keep each fact in one place and link to it rather than copying it, because copies drift.
-- Specs describe behavior someone can check. Leave implementation detail to the code and its comments.
+- Specs describe behavior someone can check, including security and privacy limits, input limits and data formats that other code reads. Leave implementation detail to the code and its comments.
 
 ## Commands
 

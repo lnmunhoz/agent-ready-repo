@@ -2,7 +2,7 @@
 
 {{description}}
 
-This file is the acceptance contract. It says what users can see and rely on, so that anyone, person or agent, can tell a bug from a feature. Each feature's own `SPEC.md` holds the detail for that feature; this file stays at the level of what a user experiences.
+This file is the acceptance contract. It says what users can see and rely on, so that anyone, person or agent, can tell a bug from a feature. Each feature's own `SPEC.md` holds the detail for that feature and links the stories here that it implements; this file stays at the level of what a user experiences. Keep story titles stable, or update those links when you rename one: `npm run check` fails on a link without a matching heading.
 
 ## User stories
 

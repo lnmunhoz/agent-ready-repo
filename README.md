@@ -16,6 +16,8 @@ That takes a few seconds. It copies the project files, fills in the name, date a
 
 Pass a folder name first to create the project somewhere else (`npx -y github:lnmunhoz/agent-ready-repo my-app --name …`), or `--help` for the options.
 
+The command always runs the latest `main`. For a repeatable setup, pin a tag or commit: `npx -y github:lnmunhoz/agent-ready-repo#<tag-or-commit> …`.
+
 ### Adding it to an existing project
 
 Run the same command with `--existing` in the project's folder. Nothing of yours is overwritten:
@@ -25,7 +27,7 @@ Run the same command with `--existing` in the project's folder. Nothing of yours
 - Documents you already have, such as `README.md`, keep their content and get a setup note at the end. The template's version is saved in `.agent-ready-merge/` to merge in. Delete that folder when you're done.
 - Your code stays where it is. Describe where it lives in `AGENTS.md`, and move it into `features/` one feature at a time if you like ([docs/adopting.md](docs/adopting.md)).
 
-Without `--existing`, the command stops before changing anything if a file would clash, and says so.
+Without `--existing`, the command stops before changing anything if a file would clash, and says so. With it, the command still stops first if the project has its own `scripts/check.mjs`, `scripts/generate-docs.mjs` or `scripts/declared-interfaces.mjs`, because the checks need those exact files: rename yours and run it again.
 
 ### Requirements
 
@@ -53,7 +55,7 @@ None of this needs special tools. It's plain Markdown, a folder layout, and two 
 | `CLAUDE.md` | Nothing new: it points Claude Code at `AGENTS.md` and `MEMORY.md`, so one set of files serves every agent | Rarely |
 | `MEMORY.md` | What has been learned across the project that the code doesn't say? Ends with an index of the feature memories | An agent learns something project-wide the next one will need |
 | `SPEC.md` | What must the product do? User stories with acceptance criteria | What users can see or rely on changes |
-| `features/<name>/SPEC.md` | What must this feature do, what does it serve, store and call, how do I check it, and what depends on it? Ends with a generated diagram of its connections | The feature's behavior, interfaces or boundaries change |
+| `features/<name>/SPEC.md` | What must this feature do, which user stories does it implement, what does it serve, store and call, how do I check it, and what depends on it? Ends with a generated diagram of its connections | The feature's behavior, interfaces or boundaries change |
 | `features/<name>/MEMORY.md` | What was learned working on this feature: decisions, traps, dead ends | An agent learns something about the feature |
 | `features/<name>/CLAUDE.md` | Generated: makes Claude Code load the feature's spec and memory when it works there | Automatically |
 | `DEPENDENCIES.md` | What connects to what? Generated from the imports and each feature's Interfaces | Automatically, by `npm run docs:generate` |
@@ -61,9 +63,9 @@ None of this needs special tools. It's plain Markdown, a folder layout, and two 
 | `TODOS.md` | What's left, and what's in progress? | A task is added, started or finished |
 | `README.md` | How do I install and run it? | Setup or usage changes |
 
-You can read them all in [template/](template/). [example/](example/features/) shows two finished features, [tasks](example/features/tasks/SPEC.md) and [cli](example/features/cli/SPEC.md), each with its spec, memory and tests.
+You can read them all in [template/](template/). [example/](example/features/) shows two finished features, [tasks](example/features/tasks/SPEC.md) and [cli](example/features/cli/SPEC.md), each with its spec, memory and tests, and [example/SPEC.md](example/SPEC.md) the user stories they link to.
 
-Every feature's `SPEC.md` ends with a generated diagram of its connections: what it imports, which features' routes, messages or events it calls at runtime (labeled with what it calls), which features use it, and the outside services it talks to. Runtime calls are found by searching the other features' code for what each spec lists under **Serves** and **Handles**, so nothing is drawn by hand and nothing goes stale. More than 12 users collapse into one node. [The command line example](example/features/cli/SPEC.md#dependencies) shows one, and GitHub renders it.
+Every feature's `SPEC.md` ends with a generated diagram of its connections: what it imports, which features' routes, messages or events it calls at runtime (labeled with what it calls), which features use it, and the outside services it talks to. Runtime calls are found by searching the other features' code for what each spec lists under **Serves** and **Handles**, matching whole routes and names, so nothing is drawn by hand. The diagrams are only as complete as those lists, so once the code defines routes or messages, fill in `scripts/declared-interfaces.mjs` to read them from the code: `npm run check` then fails when one is missing from every spec. More than 12 users collapse into one node. [The command line example](example/features/cli/SPEC.md#dependencies) shows one, and GitHub renders it.
 
 Memory lives in the repository, not in one agent's private memory folder, so switching from Claude Code to Codex (or to a teammate) loses nothing. The spec says what must be true; the memory next to it says what was learned getting there. [docs/memory.md](docs/memory.md) explains the design and how each agent finds the right memory.
 
@@ -91,20 +93,20 @@ Orienting means reading the root spec and memory, the spec and memory of the fea
 
 - No setup notes (`<!-- setup: … -->`) or template placeholders are left.
 - `README.md`, `AGENTS.md`, `MEMORY.md`, `SPEC.md`, `CHANGELOG.md`, `TODOS.md` and `DEPENDENCIES.md` exist.
-- Every folder in `features/` has a `SPEC.md` with a title and non-empty **Behavior**, **Interfaces**, **Boundaries** and **Verification** sections.
-- Every feature `SPEC.md` has an **Interfaces** section with its five lines: **Serves**, **Handles**, **Stores**, **Uses** and **External**. Each route, message or event under Serves or Handles belongs to exactly one feature.
+- Every folder in `features/` has a `SPEC.md` with a title and non-empty **Behavior**, **Interfaces**, **Boundaries** and **Verification** sections, and a `User stories:` line linking the root `SPEC.md` stories it implements.
+- Every feature `SPEC.md` has an **Interfaces** section with its five lines: **Serves**, **Handles**, **Stores**, **Uses** and **External**. Each route, message or event under Serves or Handles belongs to exactly one feature. Once `scripts/declared-interfaces.mjs` lists what the code defines, every one of those must be listed by a feature, and nothing else may be.
 - `DEPENDENCIES.md` and each feature's generated **Dependencies** section and diagram match the current imports and Interfaces.
 - Every feature has a `MEMORY.md` and a generated `CLAUDE.md`. Memory entries are dated (`- **2026-01-31** · …`), the root memory stays under 150 lines and each feature memory under 80, and the root memory's index of feature memories is current.
 - `TODOS.md` has **Open** and **Completed** sections, with no finished items under Open and no unfinished ones under Completed.
 - `CHANGELOG.md` has one dated section per day (`## 2026-01-31`), newest first.
-- Every relative link in a Markdown file points at a file that exists.
+- Every relative link in a Markdown file points at a file that exists, and a link to a heading (`SPEC.md#keep-a-task-list`) at a heading that exists, so renaming a story can't silently break the features that link to it.
 - The `todo` skill copies for Claude Code (`.claude/skills/`) and Codex (`.agents/skills/`) are identical.
 
 Each project gets a GitHub Actions workflow that runs `npm test` and `npm run check` on every push and pull request.
 
 ## Other languages
 
-The layout and the documents work in any language. Only [generate-docs.mjs](template/scripts/generate-docs.mjs) reads code, and it understands JavaScript and TypeScript imports. It also handles TypeScript files imported by their compiled `.mjs` or `.js` names. For another language, change its `IMPORT` pattern and `resolveImport` function. The scripts need Node 22 or later, even when the project itself doesn't use Node.
+The layout and the documents work in any language. Only [generate-docs.mjs](template/scripts/generate-docs.mjs) reads code, and it understands JavaScript and TypeScript imports. It also handles TypeScript files imported by their compiled `.mjs` or `.js` names. For another language, change its `IMPORT` pattern and `resolveImport` function. `scripts/declared-interfaces.mjs` is the project's own: write it to read routes and messages from whatever the project uses. The scripts need Node 22 or later, even when the project itself doesn't use Node.
 
 ## Already have a project?
 

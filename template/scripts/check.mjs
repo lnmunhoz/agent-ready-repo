@@ -5,12 +5,14 @@ import { spawnSync } from 'node:child_process';
 import { access, readdir, readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { INTERFACE_LINES, parseInterfaces, staleDocs } from './generate-docs.mjs';
+import { codeTokens, INTERFACE_LINES, parseInterfaces, START, staleDocs } from './generate-docs.mjs';
 
 export const REQUIRED_FILES = ['README.md', 'AGENTS.md', 'MEMORY.md', 'SPEC.md', 'CHANGELOG.md', 'TODOS.md', 'DEPENDENCIES.md'];
 export const MEMORY_MAX_LINES = 150;
 export const FEATURE_MEMORY_MAX_LINES = 80;
 export const FEATURE_SPEC_SECTIONS = ['Behavior', 'Interfaces', 'Boundaries', 'Verification'];
+// Where a project lists the routes and messages its code defines; see that file.
+export const DECLARED_INTERFACES = 'scripts/declared-interfaces.mjs';
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
 // Where `npx github:lnmunhoz/agent-ready-repo --existing` saves template files that clashed with the project's own.
 export const MERGE_DIR = '.agent-ready-merge';
@@ -118,27 +120,102 @@ export function checkFeatureSpec(path, markdown) {
   return problems;
 }
 
+const withoutCode = markdown => markdown.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
+
+/** Relative links in Markdown as `{ path, anchor }`; `path` is '' for a link within the same file. URLs and code are ignored. */
+export function markdownLinkTargets(markdown) {
+  return [...withoutCode(markdown).matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)]
+    .map(match => match[1])
+    .filter(target => !/^[a-z][a-z0-9+.-]*:/i.test(target))
+    .map(target => {
+      const [path, anchor = ''] = target.split('#');
+      return { path: decodeURIComponent(path), anchor: decodeURIComponent(anchor) };
+    })
+    .filter(({ path, anchor }) => path || anchor);
+}
+
 /** Relative links in Markdown must point at files that exist. Code spans and fences are ignored. */
 export function markdownLinks(markdown) {
-  const prose = markdown.replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]*`/g, '');
-  return [...prose.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)]
-    .map(match => match[1])
-    .filter(target => !/^(?:[a-z][a-z0-9+.-]*:|#)/i.test(target))
-    .map(target => decodeURIComponent(target.split('#')[0]))
-    .filter(Boolean);
+  return markdownLinkTargets(markdown).map(({ path }) => path).filter(Boolean);
+}
+
+/** The anchors GitHub gives a document's headings: lowercase, punctuation dropped, spaces as dashes, repeats numbered. */
+export function headingAnchors(markdown) {
+  const anchors = new Set();
+  const seen = new Map();
+  for (const [, text] of markdown.replace(/```[\s\S]*?```/g, '').matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)) {
+    const base = text
+      .replace(/<[^>]+>/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[`*]/g, '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+      .replace(/\s/g, '-');
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    anchors.add(count ? `${base}-${count}` : base);
+  }
+  return anchors;
 }
 
 export async function checkLinks(root) {
   const problems = [];
+  const anchorsOf = new Map();
   for (const file of await projectFiles(root)) {
     if (!file.endsWith('.md') || toPosix(relative(root, file)).startsWith(`${MERGE_DIR}/`)) continue;
-    for (const target of markdownLinks(await readFile(file, 'utf8'))) {
-      if (!await exists(resolve(dirname(file), target))) {
-        problems.push(`${toPosix(relative(root, file))}: broken link to ${target}`);
-      }
+    const from = toPosix(relative(root, file));
+    for (const { path, anchor } of markdownLinkTargets(await readFile(file, 'utf8'))) {
+      const target = path ? resolve(dirname(file), path) : file;
+      const shown = `${path}${anchor ? `#${anchor}` : ''}`;
+      if (!await exists(target)) { problems.push(`${from}: broken link to ${shown}`); continue; }
+      if (!anchor || !target.endsWith('.md')) continue;
+      if (!anchorsOf.has(target)) anchorsOf.set(target, headingAnchors(await readFile(target, 'utf8')));
+      if (!anchorsOf.get(target).has(anchor.toLowerCase())) problems.push(`${from}: link to ${shown} has no matching heading`);
     }
   }
   return problems;
+}
+
+/** A feature spec links the root SPEC.md user stories it implements, so the two levels stay connected. */
+export function checkStoryLinks(path, markdown) {
+  const own = markdown.split(START)[0];
+  const stories = markdownLinkTargets(own).filter(({ path: target, anchor }) => target === '../../SPEC.md' && anchor);
+  return stories.length ? [] : [`${path} links no user story: add a "User stories:" line linking the sections of the root SPEC.md it implements, such as [Add a task](../../SPEC.md#add-a-task).`];
+}
+
+/**
+ * Compares what the code defines (from scripts/declared-interfaces.mjs) with what
+ * the feature specs list under Serves and Handles. `declared` is null when the
+ * project hasn't declared anything yet; a list it leaves out isn't checked.
+ */
+export function interfaceCompleteness(declared, specs) {
+  if (declared === null || declared === undefined) return [];
+  const problems = [];
+  for (const [key, line] of [['serves', 'Serves'], ['handles', 'Handles']]) {
+    if (declared[key] === undefined) continue;
+    if (!Array.isArray(declared[key])) { problems.push(`${DECLARED_INTERFACES}: "${key}" must be a list of strings.`); continue; }
+    const defined = new Set(declared[key]);
+    const listed = new Map();
+    for (const [feature, markdown] of specs) {
+      for (const token of codeTokens(parseInterfaces(markdown)[line])) listed.set(token, feature);
+    }
+    for (const token of [...defined].sort()) {
+      if (!listed.has(token)) problems.push(`\`${token}\` is defined in the code but no feature lists it under ${line}.`);
+    }
+    for (const [token, feature] of [...listed].sort()) {
+      if (!defined.has(token)) problems.push(`features/${feature}/SPEC.md lists \`${token}\` under ${line}, but ${DECLARED_INTERFACES} doesn't define it.`);
+    }
+  }
+  return problems;
+}
+
+export async function checkDeclaredInterfaces(root, specs) {
+  const file = join(root, DECLARED_INTERFACES);
+  if (!await exists(file)) return [];
+  const module = await import(pathToFileURL(file).href);
+  if (typeof module.declaredInterfaces !== 'function') return [`${DECLARED_INTERFACES} must export a declaredInterfaces(root) function.`];
+  return interfaceCompleteness(await module.declaredInterfaces(root), specs);
 }
 
 /** Setup notes left by the project template: `<!-- setup: what to write here -->`. */
@@ -195,13 +272,17 @@ export async function runChecks(root) {
   if (await exists(join(root, 'CHANGELOG.md'))) problems.push(...checkChangelog(await readFile(join(root, 'CHANGELOG.md'), 'utf8')));
   if (await exists(join(root, 'MEMORY.md'))) problems.push(...checkMemory(await readFile(join(root, 'MEMORY.md'), 'utf8')));
   const featureRoot = join(root, 'features');
+  const specs = new Map();
   if (await exists(featureRoot)) {
     for (const entry of await readdir(featureRoot, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const spec = join(featureRoot, entry.name, 'SPEC.md');
       const memory = join(featureRoot, entry.name, 'MEMORY.md');
       if (await exists(spec)) {
-        problems.push(...checkFeatureSpec(`features/${entry.name}/SPEC.md`, await readFile(spec, 'utf8')));
+        const markdown = await readFile(spec, 'utf8');
+        specs.set(entry.name, markdown);
+        problems.push(...checkFeatureSpec(`features/${entry.name}/SPEC.md`, markdown));
+        problems.push(...checkStoryLinks(`features/${entry.name}/SPEC.md`, markdown));
       }
       if (await exists(memory)) {
         problems.push(...checkMemory(await readFile(memory, 'utf8'), `features/${entry.name}/MEMORY.md`, FEATURE_MEMORY_MAX_LINES));
@@ -211,6 +292,7 @@ export async function runChecks(root) {
   const { stale, problems: generatorProblems } = await staleDocs(root);
   problems.push(...generatorProblems);
   if (stale.length) problems.push(`Out of date: ${stale.join(', ')}. Run npm run docs:generate.`);
+  problems.push(...await checkDeclaredInterfaces(root, specs));
   problems.push(...await checkLinks(root));
   problems.push(...await checkSkillCopies(root));
   return problems;
