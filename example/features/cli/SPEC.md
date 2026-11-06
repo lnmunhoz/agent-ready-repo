@@ -43,7 +43,7 @@ flowchart TD
   f_tasks["Tasks"]
   f_cli --> f_tasks
   subgraph outside_f_cli["Outside this project"]
-    ext_f_cli_0["Terminal (standard output)"]
+    ext_f_cli_0["Terminal<br/>(standard<br/>output)"]
   end
   f_cli -.-> ext_f_cli_0
 ```

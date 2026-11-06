@@ -33,6 +33,18 @@ const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'coverage']);
 
 const toPosix = path => path.split(sep).join('/');
 const escapeLabel = text => text.replaceAll('"', '&quot;');
+// GitHub's Mermaid clips node labels longer than about 16 characters, so long
+// labels are broken into lines of at most this many characters.
+export const LABEL_LINE_LENGTH = 16;
+export function nodeLabel(text) {
+  const lines = [];
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const last = lines.at(-1);
+    if (last !== undefined && `${last} ${word}`.length <= LABEL_LINE_LENGTH) lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(word);
+  }
+  return lines.map(escapeLabel).join('<br/>');
+}
 
 async function exists(path) {
   try { await access(path); return true; } catch { return false; }
@@ -201,12 +213,13 @@ export async function generateDocs(root) {
   const usedByOf = name => names.filter(other => imports.get(other).has(name) || calls.get(other).has(name));
   const externalOf = name => externalServices(interfaces.get(name).External);
   const title = name => escapeLabel(featureTitle(name, specs.get(name)));
+  const nodeTitle = name => nodeLabel(featureTitle(name, specs.get(name)));
   const callLabel = (from, to) => `"${escapeLabel(callTokens(from, to).join(', '))}"`;
   const code = tokens => tokens.map(token => `\`${token}\``).join(', ');
 
   const graph = names.length
     ? ['```mermaid', 'flowchart TD',
-        ...names.map(name => `  ${nodeId(name)}["${title(name)}"]`),
+        ...names.map(name => `  ${nodeId(name)}["${nodeTitle(name)}"]`),
         ...names.flatMap(name => importsOf(name).map(target => `  ${nodeId(name)} --> ${nodeId(target)}`)),
         ...names.flatMap(name => callsOf(name).map(owner => `  ${nodeId(name)} -.->|${callLabel(name, owner)}| ${nodeId(owner)}`)),
         '```'].join('\n')
@@ -247,9 +260,9 @@ export async function generateDocs(root) {
     const neighbours = [...new Set([...importsOf(name), ...callsOf(name), ...(collapse ? [] : usedBy)])].sort();
     const self = nodeId(name);
     const diagram = ['```mermaid', 'flowchart TD',
-      `  ${self}["${title(name)}"]`,
+      `  ${self}["${nodeTitle(name)}"]`,
       `  style ${self} stroke-width:3px`,
-      ...neighbours.map(other => `  ${nodeId(other)}["${title(other)}"]`),
+      ...neighbours.map(other => `  ${nodeId(other)}["${nodeTitle(other)}"]`),
       ...(collapse ? [`  used_by_${self}["Used by ${usedBy.length} features"]`] : []),
       ...importsOf(name).map(other => `  ${self} --> ${nodeId(other)}`),
       ...callsOf(name).map(owner => `  ${self} -.->|${callLabel(name, owner)}| ${nodeId(owner)}`),
@@ -259,7 +272,7 @@ export async function generateDocs(root) {
       ])),
       ...(external.length ? [
         `  subgraph outside_${self}["Outside this project"]`,
-        ...external.map((service, index) => `    ext_${self}_${index}["${escapeLabel(service)}"]`),
+        ...external.map((service, index) => `    ext_${self}_${index}["${nodeLabel(service)}"]`),
         '  end',
         ...external.map((_, index) => `  ${self} -.-> ext_${self}_${index}`),
       ] : []),

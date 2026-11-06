@@ -4,7 +4,13 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkChangelog, checkFeatureSpec, checkMemory, checkSetup, checkSkillCopies, checkTodos, markdownLinks, MEMORY_MAX_LINES, setupNotes } from '../scripts/check.mjs';
-import { FEATURE_CLAUDE_MD, staleDocs, writeDocs } from '../scripts/generate-docs.mjs';
+import { FEATURE_CLAUDE_MD, nodeLabel, staleDocs, writeDocs } from '../scripts/generate-docs.mjs';
+
+test('long diagram labels wrap so GitHub does not clip them', () => {
+  assert.equal(nodeLabel('Terminal (standard output)'), 'Terminal<br/>(standard<br/>output)');
+  assert.equal(nodeLabel('Tasks'), 'Tasks');
+  assert.equal(nodeLabel('Say "hi" to the very long name'), 'Say &quot;hi&quot; to the<br/>very long name');
+});
 
 test('setup notes and unreplaced placeholders are listed until they are filled in', async () => {
   assert.deepEqual(setupNotes('a <!-- setup: Write the\n  user stories. --> b <!-- other -->'), ['Write the user stories.']);
@@ -165,6 +171,7 @@ test('runtime calls come from Serves and Handles, and every feature spec gets a 
     assert.match(api, /- \*\*Outside services:\*\* Postgres \(task rows\); Stripe API/);
     assert.ok(api.includes('  f_web -.->|"/api/tasks"| f_api'));
     assert.ok(api.includes('  subgraph outside_f_api["Outside this project"]'));
+    assert.ok(api.includes('    ext_f_api_0["Postgres (task<br/>rows)"]'));
     assert.ok(api.includes('    ext_f_api_1["Stripe API"]'));
     const web = await readFile(join(root, 'features/web/SPEC.md'), 'utf8');
     assert.match(web, /- \*\*Calls:\*\* \[api\]\(\.\.\/api\/SPEC\.md\) \(`\/api\/tasks`\)/);
