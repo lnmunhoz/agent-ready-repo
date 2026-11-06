@@ -17,6 +17,9 @@ export const TEMPLATE = resolve(dirname(fileURLToPath(import.meta.url)), '..', '
 const DESCRIPTION_NOTE = '<!-- setup: Describe the project in one or two sentences: what it is and who it is for. Then delete this comment. -->';
 // npm drops files named .gitignore from packages, so the template stores it without the dot.
 const RENAMES = new Map([['gitignore', '.gitignore']]);
+// Only these files have {{placeholders}}. Others, such as the checker's tests, may
+// mention placeholders on purpose and must be copied unchanged.
+const PLACEHOLDER_FILES = new Set(['README.md', 'AGENTS.md', 'SPEC.md', 'CHANGELOG.md', 'package.json']);
 const USAGE = `Create a project that coding agents can find their way around.
 
 Usage:
@@ -158,32 +161,49 @@ export async function createProject({ folder = '.', name, description, date = lo
 
   const files = [];
   const merged = [];
+  const failed = [];
   for (const { source, path } of targets) {
-    const text = fill(await readFile(source, 'utf8'), values);
-    if (conflicts.includes(path)) {
-      merged.push({ path, how: await mergeExisting(root, path, text) });
-    } else {
-      await mkdir(dirname(join(root, path)), { recursive: true });
-      await writeFile(join(root, path), text);
-      files.push(path);
+    const raw = await readFile(source, 'utf8');
+    const text = PLACEHOLDER_FILES.has(path) ? fill(raw, values) : raw;
+    // A sandboxed agent may be unable to write some folders (Codex protects
+    // .agents/, for example). Write everything else and report what failed.
+    try {
+      if (conflicts.includes(path)) {
+        merged.push({ path, how: await mergeExisting(root, path, text) });
+      } else {
+        await mkdir(dirname(join(root, path)), { recursive: true });
+        await writeFile(join(root, path), text);
+        files.push(path);
+      }
+    } catch (error) {
+      failed.push({ path, reason: error.code ?? error.message });
     }
+  }
+  if (!files.includes('scripts/generate-docs.mjs') || !files.includes('scripts/check.mjs')) {
+    throw new Error(`Couldn't write the project scripts: ${failed.map(({ path, reason }) => `${path} (${reason})`).join(', ')}.`);
   }
 
   const generator = await import(pathToFileURL(join(root, 'scripts', 'generate-docs.mjs')).href);
   await generator.writeDocs(root);
 
-  if (git && !await exists(join(root, '.git'))) spawnSync('git', ['init', '-q'], { cwd: root, stdio: 'ignore' });
+  let gitFailed = false;
+  if (git && !await exists(join(root, '.git'))) {
+    gitFailed = spawnSync('git', ['init', '-q'], { cwd: root, stdio: 'ignore' }).status !== 0;
+  }
 
   const check = await import(pathToFileURL(join(root, 'scripts', 'check.mjs')).href);
   const notes = await check.checkSetup(root);
-  return { root, files, merged, notes, name: displayName };
+  return { root, files, merged, failed, gitFailed, notes, name: displayName };
 }
 
-export function nextSteps({ root, name, notes, merged = [] }) {
+export function nextSteps({ root, name, notes, merged = [], failed = [], gitFailed = false }) {
   const where = relative(process.cwd(), root) || 'the current folder';
   return [
     merged.length ? `Added agent-ready-repo to ${name} in ${where}.` : `Created ${name} in ${where} from agent-ready-repo.`,
     ...(merged.length ? ['', 'Files you already had:', ...merged.map(({ path, how }) => `   - ${path}: ${how}.`)] : []),
+    ...(failed.length || gitFailed ? ['', 'Not done, probably because this folder is partly read-only here (an agent sandbox, for example). Finish these with write access:',
+      ...failed.map(({ path, reason }) => `   - Couldn't write ${path} (${reason}). Run the command again with --existing once it's writable${path.startsWith('.agents/') ? `, or copy ${path.replace(/^\.agents\//, '.claude/')} there; the two must match` : ''}.`),
+      ...(gitFailed ? ['   - Couldn\'t run git init. Run it yourself.'] : [])] : []),
     '',
     'Next steps, for you or your agent:',
     '1. Fill in what only you know. `npm run check` lists these until they are done:',

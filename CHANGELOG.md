@@ -4,6 +4,7 @@ Notable changes to the product, newest first. Each date gets one section, and ea
 
 ## 2026-11-06
 
+- Fixed: setting up a project no longer rewrites the placeholders inside the template's own test file, which made one test fail in every new project. When a sandbox blocks some folders, the command now creates everything else and lists what it couldn't write.
 - `--existing` adds agent-ready-repo to a project that already has files: it keeps them, merges `package.json` scripts and missing `.gitignore` and `CLAUDE.md` lines, and marks documents to merge by hand with setup notes. Checks now skip files Git ignores, so build output and vendored code in existing projects don't cause false alarms.
 
 - New projects are created with one command, `npx -y github:lnmunhoz/agent-ready-repo --name … --description …`, instead of copying this repository and cleaning it up. The project files now live in `template/`, so a new project gets no example code and no template explainer docs. The few things only the project's agent can write are marked with `<!-- setup: … -->` notes, which `npm run check` lists until they're filled in. The example features moved to `example/`.

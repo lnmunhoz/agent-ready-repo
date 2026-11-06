@@ -1,14 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createProject, nextSteps, packageName, parseArgs } from '../bin/init.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const run = (cwd, args) => spawnSync(process.execPath, args, { cwd, encoding: 'utf8' });
+// Node marks processes started by a test run with NODE_TEST_CONTEXT, and a
+// nested `node --test` then reports success even when its tests fail. Drop it so
+// the created project's tests really run.
+const { NODE_TEST_CONTEXT, ...cleanEnv } = process.env;
+const run = (cwd, args) => spawnSync(process.execPath, args, { cwd, encoding: 'utf8', env: cleanEnv });
 
 async function withFolder(fn) {
   const folder = await mkdtemp(join(tmpdir(), 'agent-ready-init-'));
@@ -110,6 +114,29 @@ test('--existing keeps the project\'s files, merges what it safely can and marks
     await rm(join(folder, '.agent-ready-merge'), { recursive: true });
     const check = run(folder, ['scripts/check.mjs']);
     assert.equal(check.status, 0, check.stderr);
+  });
+});
+
+test('a folder that cannot be written is reported, and everything else is still created', async () => {
+  await withFolder(async folder => {
+    await mkdir(join(folder, '.agents'));
+    await chmod(join(folder, '.agents'), 0o555);
+    try {
+      const project = await createProject({ folder, name: 'Sandboxed', description: 'x', git: false });
+      assert.deepEqual(project.failed.map(({ path }) => path), ['.agents/skills/todo/SKILL.md']);
+      assert.ok(project.files.includes('AGENTS.md'));
+      assert.match(nextSteps(project), /Couldn't write \.agents\/skills\/todo\/SKILL\.md .*copy \.claude\/skills\/todo\/SKILL\.md there/);
+    } finally {
+      await chmod(join(folder, '.agents'), 0o755);
+    }
+  });
+});
+
+test('template files that mention placeholders on purpose are copied unchanged', async () => {
+  await withFolder(async folder => {
+    await createProject({ folder, name: 'EMOM Timer', description: 'x', git: false });
+    assert.equal(await readFile(join(folder, 'test/checks.test.mjs'), 'utf8'),
+      await readFile(join(repo, 'template/test/checks.test.mjs'), 'utf8'));
   });
 });
 

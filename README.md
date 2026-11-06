@@ -29,7 +29,11 @@ Without `--existing`, the command stops before changing anything if a file would
 
 ### Requirements
 
-Node.js 22 or later, whatever the project itself is written in. If `npx` can't fetch from GitHub, clone this repository and run `node <clone>/bin/init.mjs <project folder> --name … --description …` instead.
+Node.js 22 or later, whatever the project itself is written in.
+
+- If `npx` fails with a permission error in npm's cache (common in agent sandboxes), point it at a writable cache: `npx --cache "${TMPDIR:-/tmp}/npm-cache" -y github:lnmunhoz/agent-ready-repo …`.
+- If `npx` can't fetch from GitHub at all, clone this repository and run `node <clone>/bin/init.mjs <project folder> --name … --description …` instead.
+- If the sandbox won't let the command write some files (Codex protects `.agents/`, for example), it creates everything else and lists what's missing. Run it again with `--existing` once you have write access.
 
 ## Why
 
